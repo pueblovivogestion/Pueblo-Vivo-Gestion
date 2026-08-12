@@ -269,7 +269,7 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
     <div class="brand-logo">INMO · UMEPAY</div>
     <div class="brand-name">Pueblo Vivo</div>
   </div>
-  <div class="conn"><span class="dot"></span> Guardado en este equipo</div>
+  <div class="conn"><span class="dot"></span> <span id="conn-txt">Conectando…</span></div>
 </div>
 
 <div class="nav" id="nav"></div>
@@ -359,9 +359,14 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 
 <div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============ Estado ============ */
 const LS_KEY='pv_gestion_v3';
+/* ===== Supabase (nube compartida) ===== */
+const SB_URL='https://vakwvcskrprrzwaqwgmr.supabase.co';
+const SB_KEY='sb_publishable_jXY1-NPrgJeJfZpNYkU1wA_iJMvcehz';
+let sb=null, cloudReady=false, pushTimer=null, pendingRemote=null, lastJSON='';
 const ESTADOS=['Nuevo','Contactado','Visita agendada','Visitó','Negociando','Reservó / seña','Cerrado','Perdido'];
 const ESTADO_BADGE={'Nuevo':'gray','Contactado':'gray','Visita agendada':'amber','Visitó':'amber','Negociando':'amber','Reservó / seña':'green','Cerrado':'green','Perdido':'gray'};
 const PRIOS=['Alta','Media','Baja'];
@@ -376,23 +381,67 @@ const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
 const COBRA_BADGE={'Fran':'green','Cande':'amber','Mitad':'gray'};
 
-let db=load();
-if(!db.cierres) db.cierres=[];
-// migración de prioridades viejas
-const PRIO_MIG={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
-db.interesados.forEach(i=>{ if(PRIO_MIG[i.prioridad]) i.prioridad=PRIO_MIG[i.prioridad]; });
-// pasa las notas sueltas al historial (una sola vez), así no se pierden
-let _migNotas=false;
-const _hoy=new Date().toISOString().slice(0,10);
-db.interesados.forEach(i=>{ if(i.notas && i.notas.trim()){ i.bitacora=i.bitacora||[]; i.bitacora.push({fecha:i.alta||_hoy,tipo:'Nota',txt:i.notas.trim()}); i.notas=''; _migNotas=true; } });
-if(_migNotas){ try{ localStorage.setItem(LS_KEY,JSON.stringify(db)); }catch(e){} }
-// enlaza los interesados existentes con Contactos (una sola vez por interesado)
-db.interesados.forEach(i=>syncContacto(i));
+let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function save(){ localStorage.setItem(LS_KEY,JSON.stringify(db)); flash(); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function applyMigrations(){
+  const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
+  db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
+  const hoy=new Date().toISOString().slice(0,10);
+  db.interesados.forEach(i=>{ if(i.notas && i.notas.trim()){ i.bitacora=i.bitacora||[]; i.bitacora.push({fecha:i.alta||hoy,tipo:'Nota',txt:i.notas.trim()}); i.notas=''; } });
+  db.interesados.forEach(i=>syncContacto(i));
+}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function setConn(txt,err){ const t=document.getElementById('conn-txt'); if(t)t.textContent=txt; const d=document.querySelector('.conn .dot'); if(d)d.style.background=err?'#f87171':'#52b788'; }
 function flash(){ const d=document.querySelector('.conn .dot'); if(!d)return; d.style.background='#e0a32e'; setTimeout(()=>d.style.background='#52b788',400); }
+
+/* ---- guardar (nube + copia local) ---- */
+function save(){
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(db)); }catch(e){}
+  flash();
+  if(!cloudReady || !sb) return;
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(async()=>{ const ok=await pushCloud(); setConn(ok?'Sincronizado ☁':'Sin conexión',!ok); }, 500);
+}
+async function pushCloud(){
+  const json=JSON.stringify(db);
+  try{
+    const {data,error}=await sb.from('estado').update({data:db,updated_at:new Date().toISOString()}).eq('id',1).select('id');
+    if(error) throw error;
+    if(!data||!data.length) throw new Error('sin permiso de escritura (RLS)');
+    lastJSON=json; return true;
+  }catch(e){ console.warn('pushCloud',e); return false; }
+}
+/* primer arranque en la nube: solo las propiedades, sin datos de ejemplo */
+function seedInicial(){ const s=seed(); s.interesados=[]; s.eventos=[]; s.cierres=[]; s.contactos=[]; return s; }
+async function loadCloud(){
+  const {data,error}=await sb.from('estado').select('data').eq('id',1).maybeSingle();
+  if(error) throw error;
+  let d=data&&data.data;
+  if(!d||!d.interesados){ d=seedInicial(); db=d; await pushCloud(); }
+  else db=d;
+  normalizar(); applyMigrations();
+  lastJSON=JSON.stringify(db);
+  try{ localStorage.setItem(LS_KEY,lastJSON); }catch(e){}
+}
+function suscribirRealtime(){
+  sb.channel('estado-rt').on('postgres_changes',{event:'*',schema:'public',table:'estado'},payload=>{
+    const nd=payload.new&&payload.new.data; if(!nd) return;
+    const j=JSON.stringify(nd); if(j===lastJSON) return;      // es mi propio cambio
+    if(document.getElementById('modalBg').classList.contains('open')){ pendingRemote=nd; return; } // no cortar edición
+    db=nd; lastJSON=j; normalizar(); renderAll();
+  }).subscribe();
+}
+async function boot(){
+  if(typeof supabase==='undefined'){ // sin nube: modo local
+    db=load(); normalizar(); applyMigrations(); cloudReady=false; renderAll(); go('resumen'); setConn('Local (sin nube)',true); return;
+  }
+  sb=supabase.createClient(SB_URL,SB_KEY);
+  setConn('Sincronizando…');
+  try{ await loadCloud(); cloudReady=true; renderAll(); go('resumen'); suscribirRealtime(); setConn('Sincronizado ☁'); }
+  catch(e){ console.warn('boot',e); db=load(); normalizar(); applyMigrations(); renderAll(); go('resumen'); setConn('Sin conexión (local)',true); }
+}
 
 function seed(){
   const iso=d=>{const x=new Date();x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);};
@@ -815,7 +864,7 @@ function renderContactos(){
 function delContacto(id){ if(!confirm('¿Eliminar contacto?'))return; db.contactos=db.contactos.filter(c=>c.id!==id); save(); renderContactos(); }
 
 /* ============ Modales ============ */
-function closeModal(){ $('#modalBg').classList.remove('open'); $('#modal').innerHTML=''; }
+function closeModal(){ $('#modalBg').classList.remove('open'); $('#modal').innerHTML=''; if(pendingRemote){ db=pendingRemote; lastJSON=JSON.stringify(db); pendingRemote=null; normalizar(); renderAll(); } }
 $('#modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg')closeModal(); });
 function opt(arr,sel){ return arr.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join(''); }
 
@@ -1000,7 +1049,7 @@ function renderAll(){
   renderFilProp(); renderPropiedades();
   renderCierres(); renderContactos();
 }
-renderAll(); go('resumen');
+boot();
 </script>
 </body>
 </html>
