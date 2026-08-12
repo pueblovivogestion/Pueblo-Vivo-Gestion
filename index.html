@@ -316,6 +316,7 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
       <div class="sec-title">Por dónde llegaron</div>
       <div id="canales"></div>
     </div>
+    <div id="balance-socias"></div>
   </div>
 
   <!-- INTERESADOS -->
@@ -646,6 +647,32 @@ function renderResumen(){
   const can={}; db.interesados.forEach(i=>can[i.canal]=(can[i.canal]||0)+1);
   const arr=Object.entries(can).sort((a,b)=>b[1]-a[1]); const cmax=Math.max(1,...Object.values(can));
   $('#canales').innerHTML=arr.map(([k,v])=>`<div class="canal-row"><div class="canal-name">${esc(k)}</div><div class="canal-bar"><div class="canal-fill" style="width:${v/cmax*100}%"></div></div><div class="canal-cnt">${v}</div></div>`).join('');
+
+  // Balance entre socias (lo que está SIN repartir, dividido por socia)
+  const pend=db.cierres.filter(c=>!c.repartido);
+  const rp=repartoTotales(pend);
+  let pu=0,pa=0; pend.forEach(c=>{const com=+c.comision||0; if(c.moneda==='USD')pu+=com; else pa+=com;});
+  const hay=pend.length>0;
+  $('#balance-socias').innerHTML=`
+    <div class="reparto">
+      <div class="reparto-t">⚖️ Balance entre socias · sin repartir</div>
+      <div class="reparto-grid">
+        <div class="rep-col"><div class="rep-name"><span class="sw" style="background:var(--green)"></span>Fran</div><div class="rep-val">${dual(rp.Fran)}</div><div class="rep-sub">le corresponde</div></div>
+        <div class="rep-sep"></div>
+        <div class="rep-col"><div class="rep-name"><span class="sw" style="background:var(--amber)"></span>Cande</div><div class="rep-val">${dual(rp.Cande)}</div><div class="rep-sub">le corresponde</div></div>
+      </div>
+      <div class="reparto-pend">
+        <span>${hay?'Total sin repartir: <b class="amt">'+dual({usd:pu,ars:pa})+'</b>':'<span class="amt ok">✓ Todo repartido · al día</span>'}</span>
+        ${hay?`<button class="btn success sm" onclick="marcarTodoRepartido()">Marcar repartido</button>`:''}
+      </div>
+    </div>`;
+}
+function marcarTodoRepartido(){
+  const pend=db.cierres.filter(c=>!c.repartido);
+  if(!pend.length) return;
+  if(!confirm('¿Marcar como repartidos todos los cierres pendientes ('+pend.length+')?')) return;
+  pend.forEach(c=>c.repartido=true);
+  save(); renderResumen(); renderCierres();
 }
 
 /* ============ Interesados ============ */
