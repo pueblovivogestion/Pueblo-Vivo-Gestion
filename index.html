@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Pueblo Vivo — Gestión</title>
+<meta name="theme-color" content="#1c1917"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,500;0,600;1,300&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f1ea;--bg2:#ece7dd;--surface:#faf8f4;--surface2:#f0ece4;
+  --ink:#1c1917;--ink2:#57534e;--ink3:#a8a29e;
+  --green:#5f6e37;--green2:#76884a;--green3:#e7eed8;
+  --amber:#92400e;--amber2:#fef3c7;
+  --red:#9b1c1c;--red2:#fee2e2;
+  --border:#ddd8ce;--border2:#c8c2b6;
+  --mono:'DM Mono',monospace;--serif:'Fraunces',serif;--sans:'Inter',system-ui,sans-serif;
+  --r:9px;--sh:0 1px 3px rgba(28,25,23,.07),0 4px 12px rgba(28,25,23,.05);
+}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:100vh;font-size:13.5px;line-height:1.45}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:13.5px}
+.num,td,.dcard-val,.tabnum{font-variant-numeric:tabular-nums}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--green);color:#fff;height:50px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 18px;position:sticky;top:0;z-index:100}
+.brand{display:flex;align-items:center;gap:13px}
+.brand-logo{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  border:1px solid rgba(255,255,255,.3);padding:4px 8px;line-height:1.3}
+.brand-name{font-family:var(--serif);font-size:18px;font-weight:300;color:rgba(255,255,255,.92)}
+.conn{display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.45)}
+.conn .dot{width:7px;height:7px;border-radius:50%;background:#52b788}
+
+/* ── NAV TABS ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:2px;
+  padding:0 14px;overflow-x:auto;position:sticky;top:50px;z-index:90;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav-btn{font-size:12.5px;padding:12px 16px;border:none;background:none;color:var(--ink3);
+  border-bottom:2px solid transparent;white-space:nowrap;transition:all .12s;letter-spacing:.02em}
+.nav-btn:hover{color:var(--ink)}
+.nav-btn.active{color:var(--green);border-bottom-color:var(--green);font-weight:500}
+.nav-btn .n{font-family:var(--mono);font-size:10px;opacity:.7;margin-left:5px}
+
+/* ── LAYOUT ── */
+.wrap{max-width:1100px;margin:0 auto;padding:22px 20px 80px}
+.page{display:none}.page.active{display:block}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.page-hdr h2{font-family:var(--serif);font-size:22px;font-weight:500}
+.page-hdr .sub{font-size:12px;color:var(--ink3);margin-top:2px}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;
+  border:1px solid var(--border2);background:var(--surface);color:var(--ink);font-size:12.5px;
+  transition:all .12s;white-space:nowrap}
+.btn:hover{background:var(--bg2);border-color:var(--ink3)}
+.btn svg{width:15px;height:15px}
+.btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.primary:hover{background:#333}
+.btn.success{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.success:hover{background:var(--green2)}
+.btn.sm{padding:4px 10px;font-size:11px}
+.btn.ghost{background:none;border-color:transparent;color:var(--ink3)}
+.btn.ghost:hover{background:var(--bg2);color:var(--ink)}
+
+/* ── SUBNAV / FILTROS ── */
+.subnav{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.subnav-btn{font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:20px;
+  background:var(--surface);color:var(--ink2);white-space:nowrap;transition:all .12s}
+.subnav-btn:hover{border-color:var(--border2)}
+.subnav-btn.active{background:var(--green);color:#fff;border-color:var(--green)}
+.subnav-btn .c{font-family:var(--mono);font-size:10px;opacity:.65;margin-left:4px}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap}
+.badge-green{background:var(--green3);color:var(--green)}
+.badge-amber{background:var(--amber2);color:var(--amber)}
+.badge-red{background:var(--red2);color:var(--red)}
+.badge-gray{background:var(--bg2);color:var(--ink2)}
+.prio-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.prio-alta{background:var(--red)}.prio-media{background:var(--amber)}.prio-baja{background:var(--ink3)}
+
+/* ── KPI ── */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.dcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px 16px;box-shadow:var(--sh)}
+/* ── REPARTO Fran/Cande ── */
+.reparto{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);padding:18px 20px;margin-bottom:16px}
+.reparto-t{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px}
+.reparto-grid{display:grid;grid-template-columns:1fr 1px 1fr;gap:18px;align-items:center}
+.rep-col{text-align:center}
+.rep-name{font-family:var(--serif);font-size:15px;font-weight:500;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:7px}
+.rep-name .sw{width:9px;height:9px;border-radius:50%}
+.rep-val{font-family:var(--serif);font-size:23px;font-weight:500;line-height:1.1}
+.rep-sub{font-size:10.5px;color:var(--ink3);margin-top:4px}
+.rep-sep{width:1px;height:52px;background:var(--border);justify-self:center}
+.reparto-pend{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:13px;border-top:1px solid var(--border);font-size:13px;color:var(--ink2)}
+.reparto-pend .amt{font-family:var(--serif);font-size:16px;font-weight:500;color:var(--amber)}
+.reparto-pend .amt.ok{color:var(--green)}
+@media(max-width:520px){.reparto-grid{grid-template-columns:1fr;gap:12px}.rep-sep{display:none}.rep-col+.rep-col{border-top:1px solid var(--border);padding-top:12px}}
+.dcard.clic{cursor:pointer;transition:all .12s}
+.dcard.clic:hover{border-color:var(--ink3);box-shadow:0 2px 6px rgba(28,25,23,.1),0 6px 16px rgba(28,25,23,.07);transform:translateY(-1px)}
+.dcard-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:7px}
+.dcard-val{font-family:var(--serif);font-size:22px;font-weight:500}
+.dcard-val small{font-family:var(--sans);font-size:11px;color:var(--ink3);font-weight:400}
+.dcard-sub{font-size:11px;color:var(--ink3);margin-top:4px}
+
+/* ── SECCIÓN ── */
+.sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh);margin-bottom:16px}
+.sec-title{font-family:var(--serif);font-size:15px;font-weight:500;margin-bottom:13px;display:flex;align-items:center;gap:7px}
+.sec-sub{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin:16px 0 9px}
+.sec-sub:first-child{margin-top:0}
+
+/* ── ALERTAS (vencen pronto / próximos pasos) — estilo agri ── */
+.accion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}
+.accion-col-t{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);
+  font-weight:600;margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.accion-item{font-size:12px;color:var(--ink2);padding:7px 0;line-height:1.45;cursor:pointer;
+  display:flex;gap:8px;align-items:flex-start;border-bottom:1px dashed var(--border)}
+.accion-item:last-child{border-bottom:0}
+.accion-item:hover{color:var(--ink)}
+.accion-item b{color:var(--ink);font-weight:600}
+.accion-item .atxt{flex:1;min-width:0}
+.accion-cuando{font-family:var(--mono);font-size:10px;color:var(--ink3);white-space:nowrap;margin-top:2px;flex:0 0 auto}
+.accion-cuando.urgente{color:var(--red);font-weight:500}
+.accion-cuando.pronto{color:var(--amber)}
+.accion-item .qa{display:flex;gap:4px;flex:0 0 auto}
+.accion-item .prio-dot{margin-top:4px}
+.accion-empty{font-size:12px;color:var(--ink3);font-style:italic;padding:6px 0}
+
+/* ── EMBUDO ── */
+.funnel{display:flex;flex-direction:column;gap:8px}
+.fun-row{display:grid;grid-template-columns:135px 1fr 26px;align-items:center;gap:10px}
+.fun-name{font-size:12px;color:var(--ink2)}
+.fun-bar{height:18px;background:var(--bg2);border-radius:5px;overflow:hidden}
+.fun-fill{height:100%;background:var(--green2);border-radius:5px;transition:width .4s;min-width:2px;opacity:.9}
+.fun-cnt{font-family:var(--mono);font-size:12px;text-align:right;color:var(--ink2)}
+
+/* ── CANALES ── */
+.canal-row{display:grid;grid-template-columns:100px 1fr 24px;align-items:center;gap:10px;margin-bottom:7px}
+.canal-name{font-size:12px;color:var(--ink2)}
+.canal-bar{height:7px;background:var(--bg2);border-radius:5px;overflow:hidden}
+.canal-fill{height:100%;background:var(--ink3);border-radius:5px}
+.canal-cnt{font-family:var(--mono);font-size:11px;text-align:right;color:var(--ink3)}
+
+/* ── CARDS INTERESADOS ── */
+.cards{display:flex;flex-direction:column;gap:10px}
+.icard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px 16px;box-shadow:var(--sh);transition:all .12s}
+.icard:hover{border-color:var(--border2)}
+.icard-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.icard-nom{font-family:var(--serif);font-size:16px;font-weight:500;display:flex;align-items:center;gap:8px}
+.icard-tipo{font-size:11px;color:var(--ink3);margin-top:2px}
+.icard-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.tag{font-size:11px;color:var(--ink2);background:var(--bg);border:1px solid var(--border);padding:2px 8px;border-radius:5px}
+.tag b{color:var(--ink)}
+.prox{display:flex;align-items:flex-start;gap:7px;background:var(--green3);border-left:3px solid var(--green);
+  padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:var(--green);font-weight:500;margin-bottom:9px;line-height:1.45}
+.prox.vencida{background:var(--red2);border-left-color:var(--red);color:var(--red)}
+.prox .f{font-family:var(--mono);font-size:10.5px;white-space:nowrap}
+.icard-notas{font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:9px}
+.hist{margin-bottom:9px}
+.hist summary{font-size:11px;color:var(--ink3);cursor:pointer;list-style:none;user-select:none}
+.hist summary::-webkit-details-marker{display:none}
+.hist summary:hover{color:var(--ink)}
+.hist-list{margin-top:8px;border-left:2px solid var(--border2);padding-left:12px;display:flex;flex-direction:column;gap:8px}
+.hist-item{font-size:11px;color:var(--ink2);line-height:1.5}
+.hist-item .hf{font-family:var(--mono);font-size:10px;color:var(--ink3);display:block}
+.hist-item .ht{display:inline-block;font-size:9px;background:var(--bg2);color:var(--ink3);padding:1px 6px;border-radius:6px;margin-right:5px}
+.icard-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border);margin-top:3px}
+.icard-foot .fecha{font-size:10px;color:var(--ink3)}
+.acts{display:flex;gap:6px}
+.iconbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--surface);
+  color:var(--ink3);display:grid;place-items:center;transition:all .12s}
+.iconbtn:hover{border-color:var(--border2);color:var(--ink);background:var(--bg2)}
+.iconbtn svg{width:15px;height:15px}
+.iconbtn.wa:hover{color:var(--green)}
+.iconbtn.del:hover{color:var(--red);border-color:var(--red)}
+
+/* ── TABLA / LISTAS SIMPLES ── */
+.simple{display:flex;flex-direction:column;gap:8px}
+.srow{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;box-shadow:var(--sh);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.srow-main{min-width:0;flex:1}
+.srow-tit{font-family:var(--serif);font-size:15px;font-weight:500}
+.srow-meta{font-size:11px;color:var(--ink3);margin-top:2px}
+.srow-notas{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5}
+.srow-right{text-align:right;flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.srow-precio{font-family:var(--serif);font-size:15px;font-weight:500;color:var(--green)}
+.grp-hdr{display:flex;align-items:center;gap:9px;margin:14px 0 2px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.grp-hdr:first-child{margin-top:0}
+.grp-cnt{font-family:var(--mono);font-size:11px;color:var(--ink3)}
+.grp-hdr .badge{font-size:11px;padding:3px 11px}
+
+/* ── CALENDARIO ── */
+.cal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh);margin-bottom:16px}
+.cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-mes{font-family:var(--serif);font-size:16px;font-weight:500;text-transform:capitalize}
+.cal-nav{display:flex;gap:6px}
+.cal-nav button{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink2);font-size:15px;display:grid;place-items:center}
+.cal-nav button:hover{background:var(--bg2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);text-align:center;padding:4px 0;font-weight:600}
+.cal-day{min-height:80px;border:1px solid var(--border);border-radius:7px;padding:5px 6px;cursor:pointer;
+  display:flex;flex-direction:column;gap:2px;overflow:hidden;transition:all .1s;position:relative;background:var(--bg)}
+.cal-day:hover{border-color:var(--border2)}
+.cal-day .dn{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.cal-day.other{background:transparent}.cal-day.other .dn{color:var(--ink3);opacity:.5}
+.cal-day.today{background:var(--surface);border-color:var(--green)}
+.cal-day.today .dn{color:var(--green);font-weight:700}
+.cal-day.sel{background:var(--green);border-color:var(--green)}
+.cal-day.sel .dn{color:#fff;font-weight:700}
+.cal-evs{display:flex;flex-direction:column;gap:2px;margin-top:2px;overflow:hidden}
+.cal-ev{font-size:9.5px;line-height:1.3;padding:1px 5px;border-radius:4px;background:var(--green3);color:var(--green);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.cal-ev.past{background:var(--bg2);color:var(--ink3)}
+.cal-ev.more{background:none;color:var(--ink3);padding-left:2px;font-weight:400}
+.cal-day.sel .cal-ev{background:rgba(255,255,255,.22);color:#fff}
+.cal-day.sel .cal-ev.more{background:none;color:rgba(255,255,255,.75)}
+
+/* ── EVENTOS lista día ── */
+.ev{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh);margin-bottom:8px}
+.ev.done{opacity:.55}
+.ev-hora{font-family:var(--mono);font-size:12px;color:var(--green);flex:0 0 auto;width:44px;padding-top:1px}
+.ev-body{flex:1;min-width:0}
+.ev-tit{font-size:13.5px;font-weight:500}
+.ev-sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.ev-acts{display:flex;gap:5px;flex:0 0 auto}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:34px 16px;color:var(--ink3);font-size:13px}
+
+/* ── MODAL ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(28,25,23,.45);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(28,25,23,.2)}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:2}
+.modal-title{font-family:var(--serif);font-size:16px;font-weight:500}
+.modal-close{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);font-size:18px;display:grid;place-items:center}
+.modal-close:hover{color:var(--red);border-color:var(--red)}
+.modal-body{padding:18px 20px}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:11.5px;font-weight:500;color:var(--ink2);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--ink);transition:all .12s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(30,92,58,.12);background:var(--surface)}
+.field textarea{resize:vertical;min-height:60px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+.hint{font-size:10.5px;color:var(--ink3);margin-top:3px}
+.modal-foot{display:flex;gap:9px;justify-content:flex-end;padding-top:4px}
+.bita-add{background:var(--bg);border:1px dashed var(--border2);border-radius:8px;padding:11px;margin-top:4px}
+
+/* ── FAB ── */
+.fab{position:fixed;right:18px;bottom:20px;z-index:80;width:52px;height:52px;border-radius:14px;
+  background:var(--ink);color:#fff;border:0;box-shadow:0 4px 16px rgba(28,25,23,.25);display:grid;place-items:center}
+.fab svg{width:24px;height:24px}.fab:hover{background:#333}
+
+@media(max-width:640px){
+  .g2,.g3{grid-template-columns:1fr}
+  .fun-row{grid-template-columns:110px 1fr 24px}
+  .cal-day{padding:3px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-logo">INMO · UMEPAY</div>
+    <div class="brand-name">Pueblo Vivo</div>
+  </div>
+  <div class="conn"><span class="dot"></span> Guardado en este equipo</div>
+</div>
+
+<div class="nav" id="nav"></div>
+
+<div class="wrap">
+
+  <!-- RESUMEN -->
+  <div class="page active" id="page-resumen">
+    <div class="page-hdr"><div><h2>Inicio</h2><div class="sub">Tu agenda y lo que requiere atención</div></div></div>
+    <div class="sec">
+      <div class="accion-grid">
+        <div>
+          <div class="accion-col-t">⏰ Vence pronto</div>
+          <div id="alertas"></div>
+        </div>
+        <div>
+          <div class="accion-col-t">▸ Próximos pasos</div>
+          <div id="aseguir"></div>
+        </div>
+        <div>
+          <div class="accion-col-t">⚠ Sin novedades</div>
+          <div id="sinnov"></div>
+        </div>
+      </div>
+    </div>
+    <div class="cal">
+      <div class="cal-hd">
+        <div class="cal-mes" id="cal-mes"></div>
+        <div class="cal-nav"><button onclick="calMove(-1)">‹</button><button onclick="calHoy()" title="Hoy" style="width:auto;padding:0 10px;font-size:12px">Hoy</button><button onclick="calMove(1)">›</button><button class="btn success sm" style="width:auto;height:auto;padding:6px 12px;margin-left:8px;display:inline-flex;gap:5px" onclick="openEvento()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Agendar</button></div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="sec">
+      <div class="sec-title">Embudo de interesados</div>
+      <div class="funnel" id="funnel"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">Por dónde llegaron</div>
+      <div id="canales"></div>
+    </div>
+  </div>
+
+  <!-- INTERESADOS -->
+  <div class="page" id="page-interesados">
+    <div class="page-hdr">
+      <div><h2>Interesados</h2><div class="sub">Cada persona que preguntó o con la que te reuniste</div></div>
+      <button class="btn primary" onclick="openInteresado()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nuevo</button>
+    </div>
+    <div class="subnav" id="fil-estado"></div>
+    <div class="cards" id="interesados"></div>
+  </div>
+
+  <!-- PROPIEDADES -->
+  <div class="page" id="page-propiedades">
+    <div class="page-hdr">
+      <div><h2>Propiedades</h2><div class="sub">Tu cartera de lotes y casas</div></div>
+      <button class="btn primary" onclick="openPropiedad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nueva</button>
+    </div>
+    <div class="subnav" id="fil-prop"></div>
+    <div class="simple" id="propiedades"></div>
+  </div>
+
+  <!-- CIERRES -->
+  <div class="page" id="page-cierres">
+    <div class="page-hdr">
+      <div><h2>Cierres</h2><div class="sub">Operaciones cerradas y comisiones</div></div>
+      <button class="btn primary" onclick="openCierre()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nuevo cierre</button>
+    </div>
+    <div id="kpis-cierres"></div>
+    <div class="simple" id="cierres"></div>
+  </div>
+
+  <!-- CONTACTOS -->
+  <div class="page" id="page-contactos">
+    <div class="page-hdr">
+      <div><h2>Contactos</h2><div class="sub">Escribanos, referentes y gente útil</div></div>
+      <button class="btn primary" onclick="openContacto()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nuevo</button>
+    </div>
+    <input id="buscar-contacto" type="search" placeholder="🔍 Buscar por nombre, rol, teléfono…" oninput="setContactoQuery(this.value)" style="width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--ink);margin-bottom:14px;font-size:13.5px">
+    <div class="simple" id="contactos"></div>
+  </div>
+
+</div>
+
+<button class="fab" id="fab" onclick="openInteresado()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
+
+<script>
+/* ============ Estado ============ */
+const LS_KEY='pv_gestion_v3';
+const ESTADOS=['Nuevo','Contactado','Visita agendada','Visitó','Negociando','Reservó / seña','Cerrado','Perdido'];
+const ESTADO_BADGE={'Nuevo':'gray','Contactado':'gray','Visita agendada':'amber','Visitó':'amber','Negociando':'amber','Reservó / seña':'green','Cerrado':'green','Perdido':'gray'};
+const PRIOS=['Alta','Media','Baja'];
+const PRIO_DOT={'Alta':'alta','Media':'media','Baja':'baja'};
+const PRIO_ORDEN={'Alta':0,'Media':1,'Baja':2};
+const PROP_ESTADOS=['Disponible','Reservada','Pausada','Alquilada','Vendida'];
+const PROP_BADGE={'Disponible':'green','Reservada':'amber','Pausada':'gray','Alquilada':'green','Vendida':'gray'};
+const CANALES=['Instagram','Facebook','WhatsApp','Referido','Cartel','Web / Portal','Feria o evento','Otro'];
+const BUSCA=['Lote','Casa','Alquiler','Inversión','Otro'];
+const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
+const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
+const COBRA=['Fran','Cande','Mitad'];
+const COBRA_BADGE={'Fran':'green','Cande':'amber','Mitad':'gray'};
+
+let db=load();
+if(!db.cierres) db.cierres=[];
+// migración de prioridades viejas
+const PRIO_MIG={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
+db.interesados.forEach(i=>{ if(PRIO_MIG[i.prioridad]) i.prioridad=PRIO_MIG[i.prioridad]; });
+// pasa las notas sueltas al historial (una sola vez), así no se pierden
+let _migNotas=false;
+const _hoy=new Date().toISOString().slice(0,10);
+db.interesados.forEach(i=>{ if(i.notas && i.notas.trim()){ i.bitacora=i.bitacora||[]; i.bitacora.push({fecha:i.alta||_hoy,tipo:'Nota',txt:i.notas.trim()}); i.notas=''; _migNotas=true; } });
+if(_migNotas){ try{ localStorage.setItem(LS_KEY,JSON.stringify(db)); }catch(e){} }
+// enlaza los interesados existentes con Contactos (una sola vez por interesado)
+db.interesados.forEach(i=>syncContacto(i));
+
+function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
+function save(){ localStorage.setItem(LS_KEY,JSON.stringify(db)); flash(); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function flash(){ const d=document.querySelector('.conn .dot'); if(!d)return; d.style.background='#e0a32e'; setTimeout(()=>d.style.background='#52b788',400); }
+
+function seed(){
+  const iso=d=>{const x=new Date();x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);};
+  return {
+    interesados:[
+      {id:uid(),nombre:'Carla y Nahuel',tel:'5493471000111',busca:'Lote',zona:'Sector arboleda',presupuesto:'USD 18.000',canal:'Instagram',prioridad:'Alta',estado:'Visita agendada',propiedad:'Lote 14',alta:iso(-6),
+        proxima:{txt:'Coordinar visita y mandar croquis',fecha:iso(2)},notas:'Pareja joven, quieren construir en 1 año.',
+        bitacora:[{fecha:iso(-6),tipo:'WhatsApp',txt:'Escribió por Instagram pidiendo lista de lotes.'},{fecha:iso(-3),tipo:'Llamado',txt:'Hablamos 15 min, muy interesados.'}]},
+      {id:uid(),nombre:'Familia Gutiérrez',tel:'5493471000222',busca:'Casa',zona:'Centro',presupuesto:'USD 55.000',canal:'Referido',prioridad:'Alta',estado:'Negociando',propiedad:'Casa Los Aromos',alta:iso(-14),
+        proxima:{txt:'Pasar contraoferta del dueño',fecha:iso(-1)},notas:'Ofrecieron 50k, el dueño pide 58k.',
+        bitacora:[{fecha:iso(-14),tipo:'Reunión',txt:'Visitaron la casa, les encantó el fondo.'},{fecha:iso(-5),tipo:'Reunión',txt:'Oferta formal de USD 50.000.'}]},
+      {id:uid(),nombre:'Marta Ledesma',tel:'5493471000333',busca:'Alquiler',zona:'Cualquiera',presupuesto:'$180.000/mes',canal:'Cartel',prioridad:'Media',estado:'Contactado',propiedad:'',alta:iso(-4),
+        proxima:{txt:'Mandar opciones de alquiler',fecha:iso(1)},notas:'Busca 2 dormitorios, se muda en marzo.',
+        bitacora:[{fecha:iso(-4),tipo:'Llamado',txt:'Llamó por el cartel de la esquina.'}]},
+      {id:uid(),nombre:'Roberto Kist',tel:'5493471000444',busca:'Inversión',zona:'Loteo nuevo',presupuesto:'USD 40.000',canal:'Web / Portal',prioridad:'Media',estado:'Visitó',propiedad:'Lotes 20-22',alta:iso(-20),
+        proxima:{txt:'Preguntar si sigue interesado',fecha:iso(3)},notas:'Quiere 2 o 3 lotes juntos para revender.',
+        bitacora:[{fecha:iso(-12),tipo:'Visita',txt:'Recorrió el loteo, sacó fotos.'}]},
+      {id:uid(),nombre:'Lucía Fernández',tel:'5493471000555',busca:'Lote',zona:'Vista al arroyo',presupuesto:'USD 25.000',canal:'Instagram',prioridad:'Alta',estado:'Reservó / seña',propiedad:'Lote 8',alta:iso(-30),
+        proxima:{txt:'Coordinar firma de boleto',fecha:iso(4)},notas:'Ya señó USD 2.000. Falta boleto.',
+        bitacora:[{fecha:iso(-18),tipo:'Visita',txt:'Visitó y le encantó.'},{fecha:iso(-7),tipo:'Otro',txt:'Dejó seña de USD 2.000.'}]},
+      {id:uid(),nombre:'Diego Almada',tel:'5493471000666',busca:'Casa',zona:'Afueras',presupuesto:'USD 30.000',canal:'Feria o evento',prioridad:'Baja',estado:'Nuevo',propiedad:'',alta:iso(-1),
+        proxima:{txt:'Primer contacto: llamar y calificar',fecha:iso(0)},notas:'Dejó los datos en el stand de la feria.',
+        bitacora:[{fecha:iso(-1),tipo:'Otro',txt:'Cargó datos en el formulario de la feria.'}]},
+      {id:uid(),nombre:'Sofía y Martín',tel:'5493471000777',busca:'Lote',zona:'Sector arboleda',presupuesto:'USD 20.000',canal:'Referido',prioridad:'Baja',estado:'Perdido',propiedad:'',alta:iso(-45),
+        proxima:{txt:'',fecha:''},notas:'Compraron en otro loteo más cerca de la ruta.',bitacora:[{fecha:iso(-20),tipo:'Otro',txt:'Avisaron que compraron en otro lado.'}]},
+    ],
+    propiedades:[
+      {id:uid(),titulo:'Andy · lote 16',tipo:'Lote',zona:'Aldea',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Carmen · lote 28',tipo:'Lote',zona:'Aldea',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Lucía · lote 219',tipo:'Lote',zona:'Aldea',precio:'USD 69.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Kurri · lote 35',tipo:'Casa',zona:'Aldea',precio:'USD 280.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Escondida · lote 45',tipo:'Casa',zona:'Aldea',precio:'USD 167.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Octógono · lote 31',tipo:'Casa',zona:'Aldea',precio:'USD 210.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casas Wahe Gurú · lote 55',tipo:'Casa',zona:'Aldea',precio:'USD 250.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Brote · lote 215',tipo:'Casa',zona:'Aldea',precio:'USD 93.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa MeliPal · lote 229',tipo:'Casa',zona:'Aldea',precio:'USD 125.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Champaquí · lote 182',tipo:'Casa',zona:'Castaños',precio:'Consultar',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Daphne · lote 97',tipo:'Casa',zona:'Nogales Alto',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Julieta · lote 87',tipo:'Lote',zona:'Nogales Alto',precio:'USD 41.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Mario · lote 188',tipo:'Casa',zona:'Nogales Alto',precio:'USD 55.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Gastón · lote 80',tipo:'Lote',zona:'Nogales Alto',precio:'USD 45.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 112',tipo:'Lote',zona:'Nogales Alto',precio:'USD 36.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 84',tipo:'Lote',zona:'Nogales Alto',precio:'USD 54.400',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casas Atom y Jani · lote 109',tipo:'Casa',zona:'Nogales Alto',precio:'USD 240.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 85',tipo:'Lote',zona:'Nogales Alto',precio:'USD 36.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Sol · lote 122',tipo:'Lote',zona:'Nogales Bajo',precio:'USD 45.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Magda · lote 178',tipo:'Lote',zona:'Acacias',precio:'USD 40.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 163',tipo:'Lote',zona:'Acacias',precio:'USD 42.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Juan D · lote 165',tipo:'Lote',zona:'Acacias',precio:'USD 42.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Bosque · lote 171',tipo:'Casa',zona:'Acacias',precio:'USD 158.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 197',tipo:'Lote',zona:'Tres Ríos',precio:'USD 55.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Silvia · lote 200',tipo:'Lote',zona:'Tres Ríos',precio:'USD 61.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Gratitud · lote 70',tipo:'Casa',zona:'Tres Ríos',precio:'Consultar',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Intiquiya · lote 199',tipo:'Casa',zona:'Tres Ríos',precio:'Consultar',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 74',tipo:'Lote',zona:'Tres Ríos',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 75',tipo:'Lote',zona:'Tres Ríos',precio:'USD 100.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 67',tipo:'Lote',zona:'Tres Ríos',precio:'USD 100.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 77',tipo:'Lote',zona:'Tres Ríos',precio:'USD 100.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 71',tipo:'Lote',zona:'Tres Ríos',precio:'USD 70.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 64',tipo:'Lote',zona:'Tres Ríos',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 68',tipo:'Lote',zona:'Tres Ríos',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo Tres Ríos · lote 66',tipo:'Lote',zona:'Tres Ríos',precio:'USD 80.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Mariana · lote 146',tipo:'Lote',zona:'Siete Lomas',precio:'USD 22.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 147',tipo:'Lote',zona:'Siete Lomas',precio:'USD 35.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Gaby · lote 143',tipo:'Casa',zona:'Siete Lomas',precio:'USD 40.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 144',tipo:'Lote',zona:'Siete Lomas',precio:'USD 35.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 153',tipo:'Lote',zona:'Nueve Lomas',precio:'USD 28.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 152',tipo:'Lote',zona:'Nueve Lomas',precio:'USD 28.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 149',tipo:'Lote',zona:'Nueve Lomas',precio:'USD 28.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 150',tipo:'Lote',zona:'Nueve Lomas',precio:'USD 28.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Desarrollo 100T · lote 151',tipo:'Lote',zona:'Nueve Lomas',precio:'USD 28.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Costa Río · lote 231',tipo:'Casa',zona:'Nueve Lomas',precio:'USD 320.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Belén · lote 222',tipo:'Lote',zona:'Otros',precio:'USD 96.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Los Cuarzos · lote 2',tipo:'Lote',zona:'Otros',precio:'USD 75.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Victoria · lote 223',tipo:'Lote',zona:'Otros',precio:'USD 35.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'coty · lote 180',tipo:'Lote',zona:'Otros',precio:'USD 32.000',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Bambú · lote 216',tipo:'Alquiler',zona:'Aldea',precio:'$60/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Brote · lote 215',tipo:'Alquiler',zona:'Aldea',precio:'$50/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Barro · lote 19',tipo:'Alquiler',zona:'Aldea',precio:'$80/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'kurry · lote 35',tipo:'Alquiler',zona:'Aldea',precio:'$80/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Escondida · lote 45',tipo:'Alquiler',zona:'Aldea',precio:'$70/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Octógono · lote 31',tipo:'Alquiler',zona:'Aldea',precio:'$70/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Fantasy · lote 107',tipo:'Alquiler',zona:'Los Nogales',precio:'$70/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Casa Vera · lote 218',tipo:'Alquiler',zona:'Los Nogales',precio:'$70/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Tiny Glori · lote 217',tipo:'Alquiler',zona:'Los Nogales',precio:'$35/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Slata · lote 214',tipo:'Alquiler',zona:'Los Nogales',precio:'$85/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Rosa · lote 213',tipo:'Alquiler',zona:'Los Nogales',precio:'$60/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Coles · lote 206',tipo:'Alquiler',zona:'Los Nogales',precio:'$85/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Loli · lote 110',tipo:'Alquiler',zona:'Los Nogales',precio:'$75/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Maga · lote 89',tipo:'Alquiler',zona:'Los Nogales',precio:'$75/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'La Nheli · lote 183',tipo:'Alquiler',zona:'Castaños',precio:'$90/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Nido · lote 138',tipo:'Alquiler',zona:'Espinillos',precio:'$65/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Bosque · lote 171',tipo:'Alquiler',zona:'Acacias',precio:'$80/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Gratitud · lote 70',tipo:'Alquiler',zona:'Tres Ríos',precio:'$180/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Sagrado Corazón · lote 73',tipo:'Alquiler',zona:'Tres Ríos',precio:'$70/noche',estado:'Disponible',notas:''},
+      {id:uid(),titulo:'Champaquí · lote 182',tipo:'Alquiler',zona:'Castaños',precio:'$100/noche',estado:'Disponible',notas:''},
+    ],
+    eventos:[
+      {id:uid(),titulo:'Visita — Carla y Nahuel',fecha:iso(2),hora:'10:30',tipo:'Visita',lugar:'Lote 14',notas:'Llevar croquis impreso.',hecho:false},
+      {id:uid(),titulo:'Firma boleto — Lucía',fecha:iso(4),hora:'16:00',tipo:'Reunión',lugar:'Escribanía Rossi',notas:'Lote 8.',hecho:false},
+      {id:uid(),titulo:'Llamar a Marta Ledesma',fecha:iso(1),hora:'12:00',tipo:'Llamado',lugar:'',notas:'Opciones de alquiler.',hecho:false},
+      {id:uid(),titulo:'Recorrida — familia Gutiérrez',fecha:iso(-2),hora:'11:00',tipo:'Visita',lugar:'Casa Los Aromos',notas:'',hecho:true},
+    ],
+    cierres:[
+      {id:uid(),cliente:'Flia. Romero',propiedad:'Lote 3 — ribera',tipo:'Venta',moneda:'USD',monto:22000,comision:1100,fecha:iso(-8),cobra:'Fran',repartido:true,notas:'Comisión 5%. Escritura hecha.'},
+      {id:uid(),cliente:'Andrea Solís',propiedad:'Depto centro',tipo:'Alquiler',moneda:'$',monto:180000,comision:180000,fecha:iso(-3),cobra:'Mitad',repartido:false,notas:'Un mes de comisión.'},
+    ],
+    contactos:[
+      {id:uid(),nombre:'Escribanía Rossi',rol:'Escribano',tel:'5493471111222',notas:'Boletos y escrituras del loteo.'},
+      {id:uid(),nombre:'Juan (agrimensor)',rol:'Mensuras',tel:'5493471333444',notas:'Subdivisiones y planos.'},
+      {id:uid(),nombre:'Los Pérez',rol:'Referentes',tel:'5493471555666',notas:'Ya trajeron 3 clientes.'},
+    ],
+  };
+}
+
+/* ============ Helpers ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const todayISO=()=>new Date().toISOString().slice(0,10);
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MESC=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const DOW=['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+function fechaLarga(iso){ if(!iso)return''; const[y,m,d]=iso.split('-'); return `${+d} ${MESC[+m-1]}`; }
+function diasHasta(iso){ if(!iso)return null; return Math.round((new Date(iso+'T00:00')-new Date(todayISO()+'T00:00'))/86400000); }
+function nfmt(n){ return (+n||0).toLocaleString('es-AR'); }
+function waLink(t){ return 'https://wa.me/'+(t||'').replace(/\D/g,''); }
+function cuando(d){
+  if(d<0) return `<span class="accion-cuando urgente">vencido hace ${-d} d</span>`;
+  if(d===0) return `<span class="accion-cuando urgente">HOY</span>`;
+  if(d===1) return `<span class="accion-cuando pronto">mañana</span>`;
+  return `<span class="accion-cuando">en ${d} d</span>`;
+}
+
+const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['cierres','Cierres'],['contactos','Contactos']];
+let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos';
+
+function renderNav(){
+  $('#nav').innerHTML=TABS.map(([k,n])=>{
+    let c='';
+    if(k==='interesados') c=db.interesados.filter(i=>i.estado!=='Cerrado'&&i.estado!=='Perdido').length;
+    if(k==='propiedades') c=db.propiedades.filter(p=>p.estado==='Disponible').length;
+    return `<button class="nav-btn ${k===currentTab?'active':''}" onclick="go('${k}')">${n}${c?`<span class="n">${c}</span>`:''}</button>`;
+  }).join('');
+}
+function go(k){
+  currentTab=k;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  $('#page-'+k).classList.add('active');
+  renderNav();
+  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,contactos:openContacto};
+  $('#fab').onclick=map[k]||openInteresado;
+  window.scrollTo(0,0);
+}
+function scrollToCal(){ const el=document.querySelector('.cal'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }
+function verReservas(){ go('interesados'); }
+
+/* ============ Resumen ============ */
+function renderResumen(){
+  const act=db.interesados.filter(i=>i.estado!=='Cerrado'&&i.estado!=='Perdido');
+  const calientes=act.filter(i=>i.prioridad==='Alta').length;
+  const reservas=db.interesados.filter(i=>i.estado==='Reservó / seña').length;
+  const evSem=db.eventos.filter(e=>{const d=diasHasta(e.fecha);return !e.hecho&&e.fecha&&d!==null&&d>=0&&d<=7;}).length;
+  const com=comisionesMes();
+  $('#kpis').innerHTML=`
+    <div class="dcard clic" onclick="go('interesados')"><div class="dcard-label">Interesados activos</div><div class="dcard-val">${act.length}</div><div class="dcard-sub">${calientes} de prioridad alta →</div></div>
+    <div class="dcard clic" onclick="scrollToCal()"><div class="dcard-label">Agenda 7 días</div><div class="dcard-val">${evSem}</div><div class="dcard-sub">ver calendario →</div></div>
+    <div class="dcard clic" onclick="verReservas()"><div class="dcard-label">Reservas / señas</div><div class="dcard-val">${reservas}</div><div class="dcard-sub">en proceso →</div></div>
+    <div class="dcard clic" onclick="go('cierres')"><div class="dcard-label">Comisiones del mes</div><div class="dcard-val">${com.txt}</div><div class="dcard-sub">${com.n} cierre${com.n===1?'':'s'} →</div></div>`;
+
+  // Alertas: eventos de agenda + próximas acciones que vencen pronto (dentro de 7 días o vencidas)
+  const items=[];
+  db.eventos.filter(e=>!e.hecho&&e.fecha).forEach(e=>{ const d=diasHasta(e.fecha); if(d===null||d>7)return;
+    const qa=d<0?`<span class="qa"><button class="btn sm" onclick="event.stopPropagation();evHecho('${e.id}')">✓ Se hizo</button></span>`:'';
+    items.push({f:e.fecha,d,html:`<b>${esc(e.titulo)}</b> · ${esc(e.tipo)}${e.hora?' · '+esc(e.hora):''}`,click:`openEvento('${e.id}')`,qa}); });
+  db.interesados.filter(i=>i.estado!=='Cerrado'&&i.estado!=='Perdido'&&i.proxima&&i.proxima.fecha&&i.proxima.txt).forEach(i=>{
+    const d=diasHasta(i.proxima.fecha); if(d===null||d>7)return;
+    items.push({f:i.proxima.fecha,d,html:`<b>${esc(i.nombre)}</b> — ${esc(i.proxima.txt)}`,click:`openInteresado('${i.id}')`,qa:''}); });
+  items.sort((a,b)=>a.f.localeCompare(b.f));
+  const vacio=`<div class="accion-empty">Nada pendiente ✓</div>`;
+  $('#alertas').innerHTML=items.length?items.map(x=>`<div class="accion-item" onclick="${x.click}">${cuando(x.d)}<span class="atxt">${x.html}</span>${x.qa}</div>`).join(''):vacio;
+
+  // Próximos pasos: próximas acciones de activos por prioridad
+  const seguir=act.filter(i=>i.proxima&&i.proxima.txt).sort((a,b)=>PRIO_ORDEN[a.prioridad]-PRIO_ORDEN[b.prioridad]).slice(0,8);
+  $('#aseguir').innerHTML=seguir.length?seguir.map(i=>`<div class="accion-item" onclick="openInteresado('${i.id}')"><span class="prio-dot prio-${PRIO_DOT[i.prioridad]}" title="${i.prioridad}"></span><span class="atxt"><b>${esc(i.nombre)}</b> — ${esc(i.proxima.txt)}</span>${i.proxima.fecha?cuando(diasHasta(i.proxima.fecha)):''}</div>`).join(''):vacio;
+
+  // Sin novedades: activos sin contacto hace 14+ días (según última bitácora o alta)
+  const ultMov=i=>{ const ds=[i.alta]; (i.bitacora||[]).forEach(b=>b.fecha&&ds.push(b.fecha)); return ds.filter(Boolean).sort().pop(); };
+  const sinNov=act.map(i=>({i,dias:-diasHasta(ultMov(i))})).filter(x=>x.dias>=14).sort((a,b)=>b.dias-a.dias).slice(0,8);
+  $('#sinnov').innerHTML=sinNov.length?sinNov.map(x=>`<div class="accion-item" onclick="openInteresado('${x.i.id}')"><span class="prio-dot prio-${PRIO_DOT[x.i.prioridad]}"></span><span class="atxt"><b>${esc(x.i.nombre)}</b> — sin novedades hace ${x.dias} días</span></div>`).join(''):vacio;
+
+  // Embudo (un solo color)
+  const ct={}; ESTADOS.forEach(e=>ct[e]=0); db.interesados.forEach(i=>{if(ct[i.estado]!==undefined)ct[i.estado]++;});
+  const max=Math.max(1,...Object.values(ct));
+  $('#funnel').innerHTML=ESTADOS.map(e=>`<div class="fun-row"><div class="fun-name">${e}</div><div class="fun-bar"><div class="fun-fill" style="width:${ct[e]/max*100}%"></div></div><div class="fun-cnt">${ct[e]}</div></div>`).join('');
+
+  // Canales
+  const can={}; db.interesados.forEach(i=>can[i.canal]=(can[i.canal]||0)+1);
+  const arr=Object.entries(can).sort((a,b)=>b[1]-a[1]); const cmax=Math.max(1,...Object.values(can));
+  $('#canales').innerHTML=arr.map(([k,v])=>`<div class="canal-row"><div class="canal-name">${esc(k)}</div><div class="canal-bar"><div class="canal-fill" style="width:${v/cmax*100}%"></div></div><div class="canal-cnt">${v}</div></div>`).join('');
+}
+
+/* ============ Interesados ============ */
+function renderFilEstado(){
+  const cont={Todos:db.interesados.length}; PRIOS.forEach(p=>cont[p]=db.interesados.filter(i=>i.prioridad===p).length);
+  const list=['Todos',...PRIOS];
+  $('#fil-estado').innerHTML=list.map(k=>`<button class="subnav-btn ${filtroEstado===k?'active':''}" onclick="setEstado('${k}')">${k==='Todos'?'':`<span class="prio-dot prio-${PRIO_DOT[k]}" style="margin-right:6px"></span>`}${k}<span class="c">${cont[k]||0}</span></button>`).join('');
+}
+function setEstado(k){ filtroEstado=k; renderFilEstado(); renderInteresados(); }
+function renderInteresados(){
+  let list=db.interesados.slice();
+  if(filtroEstado!=='Todos') list=list.filter(i=>i.prioridad===filtroEstado);
+  list.sort((a,b)=>(PRIO_ORDEN[a.prioridad]-PRIO_ORDEN[b.prioridad])||((a.proxima?.fecha||'9999').localeCompare(b.proxima?.fecha||'9999')));
+  $('#interesados').innerHTML=list.length?list.map(cardInteresado).join(''):`<div class="empty">No hay interesados en este filtro.</div>`;
+}
+function cardInteresado(i){
+  const eb=ESTADO_BADGE[i.estado]||'gray';
+  let prox='';
+  if(i.proxima&&i.proxima.txt){ const d=diasHasta(i.proxima.fecha), v=(d!==null&&d<0);
+    prox=`<div class="prox ${v?'vencida':''}"><span class="f">${i.proxima.fecha?fechaLarga(i.proxima.fecha):'—'}</span>${esc(i.proxima.txt)}</div>`; }
+  const ultima=(i.bitacora&&i.bitacora.length)?i.bitacora[i.bitacora.length-1]:null;
+  const notaPrev=ultima?`<div class="icard-notas"><span class="ht" style="display:inline-block;font-size:9px;background:var(--bg2);color:var(--ink3);padding:1px 6px;border-radius:6px;margin-right:5px">${esc(ultima.tipo)}</span>${esc(ultima.txt)}</div>`:'';
+  const hist=(i.bitacora&&i.bitacora.length)?`<details class="hist"><summary onclick="event.stopPropagation()">Historial (${i.bitacora.length})</summary><div class="hist-list">${i.bitacora.slice().reverse().map(h=>`<div class="hist-item"><span class="hf">${fechaLarga(h.fecha)}</span><span class="ht">${esc(h.tipo)}</span>${esc(h.txt)}</div>`).join('')}</div></details>`:'';
+  return `<div class="icard" style="cursor:pointer" onclick="openInteresado('${i.id}')">
+    <div class="icard-hdr">
+      <div><div class="icard-nom"><span class="prio-dot prio-${PRIO_DOT[i.prioridad]}" title="${i.prioridad}"></span>${esc(i.nombre)}</div><div class="icard-tipo">${esc(i.busca)}${i.zona?' · '+esc(i.zona):''}</div></div>
+      <div class="icard-badges"><span class="badge badge-${eb}">${esc(i.estado)}</span></div>
+    </div>
+    <div class="tags">
+      ${i.propiedad?`<span class="tag">🏡 <b>${esc(i.propiedad)}</b></span>`:''}
+      ${i.presupuesto?`<span class="tag">💰 ${esc(i.presupuesto)}</span>`:''}
+      <span class="tag">📣 ${esc(i.canal)}</span>
+    </div>
+    ${prox}
+    ${notaPrev}
+    ${hist}
+    <div class="icard-foot">
+      <span class="fecha">Alta ${fechaLarga(i.alta)}</span>
+      <div class="acts">
+        ${i.tel?`<a class="iconbtn wa" href="${waLink(i.tel)}" target="_blank" title="WhatsApp" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.7-.1-.4-.1-.9-.3-1.6-.6-2.8-1.2-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.8 0-1.3.7-2 .9-2.2.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5.2.5.7 1.8.8 1.9.1.1.1.3 0 .5-.1.2-.2.4-.3.5-.2.2-.3.4-.2.6.1.2.6 1 1.4 1.6.9.8 1.7 1.1 1.9 1.2.2.1.4.1.5-.1.1-.2.6-.7.8-.9.2-.3.3-.2.6-.1.2.1 1.5.7 1.7.9.2.1.4.2.4.3.1.1.1.6-.1 1.1Z"/></svg></a>`:''}
+        <button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delInteresado('${i.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+      </div>
+    </div>
+  </div>`;
+}
+function delInteresado(id){ if(!confirm('¿Eliminar este interesado?'))return; db.interesados=db.interesados.filter(i=>i.id!==id); db.contactos=db.contactos.filter(c=>c.refInt!==id); db.cierres=db.cierres.filter(c=>c.refInt!==id); save(); renderAll(); }
+
+/* ============ Agenda / Calendario ============ */
+let calY, calM, selDay=todayISO();
+(function(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); })();
+function calMove(n){ calM+=n; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} renderCalendar(); }
+function calHoy(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); selDay=todayISO(); renderCalendar(); }
+// Citas del día = próximas acciones de las tarjetas con esa fecha
+function agendaDeDia(iso){
+  return db.eventos.filter(e=>e.fecha===iso)
+    .map(e=>({id:e.id,hora:(e.hora||''),titulo:e.titulo,tipo:e.tipo,lugar:e.lugar||'',hecho:e.hecho,intId:e.interesadoId,notas:e.notas||''}))
+    .sort((a,b)=>(a.hora||'99:99').localeCompare(b.hora||'99:99'));
+}
+function renderCalendar(){
+  $('#cal-mes').textContent=`${MESES[calM]} ${calY}`;
+  const first=new Date(calY,calM,1);
+  let start=(first.getDay()+6)%7; // lunes=0
+  const dim=new Date(calY,calM+1,0).getDate();
+  const prevDim=new Date(calY,calM,0).getDate();
+  let cells='';
+  DOW.forEach(d=>cells+=`<div class="cal-dow">${d}</div>`);
+  const mk=(dnum,other,y,m)=>{
+    const iso=`${y}-${String(m+1).padStart(2,'0')}-${String(dnum).padStart(2,'0')}`;
+    const evs=agendaDeDia(iso); const isToday=iso===todayISO(); const isSel=iso===selDay;
+    const past=diasHasta(iso)<0;
+    const labels=evs.slice(0,2).map(a=>`<div class="cal-ev ${a.hecho||past?'past':''}">${a.hora?esc(a.hora)+' ':''}${esc(a.titulo)}</div>`).join('');
+    const more=evs.length>2?`<div class="cal-ev more">+${evs.length-2} más</div>`:'';
+    return `<div class="cal-day ${other?'other':''} ${isToday?'today':''} ${isSel?'sel':''}" onclick="openDia('${iso}')"><span class="dn">${dnum}</span><div class="cal-evs">${labels}${more}</div></div>`;
+  };
+  for(let i=start-1;i>=0;i--) cells+=mk(prevDim-i,true,calM===0?calY-1:calY,calM===0?11:calM-1);
+  for(let d=1;d<=dim;d++) cells+=mk(d,false,calY,calM);
+  const total=start+dim; const rest=(7-total%7)%7;
+  for(let d=1;d<=rest;d++) cells+=mk(d,true,calM===11?calY+1:calY,calM===11?0:calM+1);
+  $('#cal-grid').innerHTML=cells;
+}
+function openDia(iso){
+  selDay=iso; renderCalendar();
+  const evs=agendaDeDia(iso);
+  const d=new Date(iso+'T00:00');
+  const dia=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][d.getDay()];
+  const cuerpo=evs.length?evs.map(a=>{ const int=a.intId?db.interesados.find(x=>x.id===a.intId):null;
+    return `<div class="ev ${a.hecho?'done':''}" style="cursor:pointer" onclick="openEvento('${a.id}')">
+      <div class="ev-hora">${a.hora||'—'}</div>
+      <div class="ev-body"><div class="ev-tit">${esc(a.titulo)}</div><div class="ev-sub">${esc(a.tipo)}${a.lugar?' · '+esc(a.lugar):''}${int?' · 🔗 '+esc(int.nombre):''}</div></div>
+      <div class="ev-acts">
+        <button class="iconbtn" title="${a.hecho?'Reabrir':'Marcar hecho'}" onclick="event.stopPropagation();evHecho('${a.id}');openDia('${iso}')">${a.hecho?'↺':'✓'}</button>
+        <button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delEv('${a.id}');openDia('${iso}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+      </div>
+    </div>`;}).join(''):`<div class="empty" style="padding:22px">No hay nada agendado este día.</div>`;
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${dia} ${fechaLarga(iso)}${iso===todayISO()?' · hoy':''}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${cuerpo}
+      <div class="modal-foot" style="margin-top:14px"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn success" onclick="openEvento(null,'${iso}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Agendar acá</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function renderAgenda(){ renderCalendar(); }
+function evHecho(id){ const e=db.eventos.find(x=>x.id===id); e.hecho=!e.hecho; save(); renderAgenda(); renderNav(); renderResumen(); }
+function delEv(id){ if(!confirm('¿Eliminar este evento?'))return; db.eventos=db.eventos.filter(e=>e.id!==id); db.interesados.forEach(i=>{ if(i.bitacora) i.bitacora=i.bitacora.filter(b=>b.refEv!==id); }); save(); renderAll(); }
+
+/* ============ Propiedades ============ */
+function renderFilProp(){
+  const tipos=['Todos','Lote','Casa','Alquiler','Inversión'];
+  const cont={}; tipos.forEach(t=>cont[t]=t==='Todos'?db.propiedades.length:db.propiedades.filter(p=>p.tipo===t).length);
+  $('#fil-prop').innerHTML=tipos.map(t=>`<button class="subnav-btn ${filtroProp===t?'active':''}" onclick="setProp('${t}')">${t}<span class="c">${cont[t]||0}</span></button>`).join('');
+}
+function setProp(t){ filtroProp=t; renderFilProp(); renderPropiedades(); }
+function rowProp(p){
+  return `<div class="srow" style="cursor:pointer" onclick="openPropiedad('${p.id}')">
+      <div class="srow-main"><div class="srow-tit">${esc(p.titulo)}</div><div class="srow-meta">${esc(p.tipo)}${p.zona?' · '+esc(p.zona):''}</div>${p.notas?`<div class="srow-notas">${esc(p.notas)}</div>`:''}</div>
+      <div class="srow-right"><span class="srow-precio">${esc(p.precio||'—')}</span>
+        <div class="acts"><button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delProp('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>
+      </div>
+    </div>`;
+}
+function renderPropiedades(){
+  let list=db.propiedades.slice();
+  if(filtroProp!=='Todos') list=list.filter(p=>p.tipo===filtroProp);
+  if(!list.length){ $('#propiedades').innerHTML=`<div class="empty">No hay propiedades en este filtro.</div>`; return; }
+  let html='';
+  PROP_ESTADOS.forEach(est=>{
+    const g=list.filter(p=>p.estado===est);
+    if(!g.length) return;
+    html+=`<div class="grp-hdr"><span class="badge badge-${PROP_BADGE[est]||'gray'}">${est}</span><span class="grp-cnt">${g.length}</span></div>`;
+    html+=g.map(rowProp).join('');
+  });
+  // por si hay algún estado fuera de la lista
+  const otros=list.filter(p=>!PROP_ESTADOS.includes(p.estado));
+  if(otros.length){ html+=`<div class="grp-hdr"><span class="badge badge-gray">Otros</span><span class="grp-cnt">${otros.length}</span></div>`+otros.map(rowProp).join(''); }
+  $('#propiedades').innerHTML=html;
+}
+function delProp(id){ if(!confirm('¿Eliminar esta propiedad?'))return; db.propiedades=db.propiedades.filter(p=>p.id!==id); save(); renderPropiedades(); renderNav(); }
+
+/* ============ Cierres ============ */
+function comisionesMes(){
+  const mes=new Date().toISOString().slice(0,7);
+  const c=db.cierres.filter(x=>(x.fecha||'').slice(0,7)===mes);
+  let usd=0,ars=0; c.forEach(x=>{ if(x.moneda==='USD')usd+=+x.comision||0; else ars+=+x.comision||0; });
+  const p=[]; if(usd)p.push('US$'+nfmt(usd)); if(ars)p.push('$'+nfmt(ars));
+  return {n:c.length,txt:p.length?p.join(' <small>+</small> '):'—'};
+}
+function repartoTotales(arr){
+  const t={Fran:{usd:0,ars:0},Cande:{usd:0,ars:0}};
+  arr.forEach(c=>{ const com=+c.comision||0, cur=c.moneda==='USD'?'usd':'ars', who=c.cobra||'Mitad';
+    if(who==='Fran') t.Fran[cur]+=com; else if(who==='Cande') t.Cande[cur]+=com;
+    else { t.Fran[cur]+=com/2; t.Cande[cur]+=com/2; } });
+  return t;
+}
+function dual(o){ const p=[]; if(o.usd)p.push('US$'+nfmt(Math.round(o.usd))); if(o.ars)p.push('$'+nfmt(Math.round(o.ars))); return p.length?p.join(' <small>+</small> '):'—'; }
+function renderCierres(){
+  const mes=new Date().toISOString().slice(0,7);
+  const cMes=db.cierres.filter(x=>(x.fecha||'').slice(0,7)===mes);
+  const rMes=repartoTotales(cMes);
+  const pend=db.cierres.filter(c=>!c.repartido);
+  let pu=0,pa=0; pend.forEach(c=>{const com=+c.comision||0; if(c.moneda==='USD')pu+=com; else pa+=com;});
+  const hayPend=pend.length>0;
+  $('#kpis-cierres').innerHTML=`
+    <div class="reparto">
+      <div class="reparto-t">Comisiones de este mes</div>
+      <div class="reparto-grid">
+        <div class="rep-col"><div class="rep-name"><span class="sw" style="background:var(--green)"></span>Fran</div><div class="rep-val">${dual(rMes.Fran)}</div><div class="rep-sub">${cMes.length} cierre${cMes.length===1?'':'s'} este mes</div></div>
+        <div class="rep-sep"></div>
+        <div class="rep-col"><div class="rep-name"><span class="sw" style="background:var(--amber)"></span>Cande</div><div class="rep-val">${dual(rMes.Cande)}</div><div class="rep-sub">se divide 50/50 en «Mitad»</div></div>
+      </div>
+      <div class="reparto-pend"><span>${hayPend?'⏳ Falta repartir':'✓ Todo repartido'}</span><span class="amt ${hayPend?'':'ok'}">${hayPend?dual({usd:pu,ars:pa})+' · '+pend.length+' pend.':'al día'}</span></div>
+    </div>`;
+  const list=db.cierres.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  $('#cierres').innerHTML=list.length?list.map(c=>{ const sig=c.moneda==='USD'?'US$':'$'; const who=c.cobra||'Mitad'; const rep=!!c.repartido;
+    const linked=!!c.refInt && db.interesados.some(i=>i.id===c.refInt);
+    const open= linked ? `onclick="openInteresado('${c.refInt}')" style="cursor:pointer"` : '';
+    const edit= linked
+      ? `<button class="iconbtn" onclick="event.stopPropagation();openInteresado('${c.refInt}')" title="Se edita desde la tarjeta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`
+      : `<button class="iconbtn" onclick="event.stopPropagation();openCierre('${c.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      <button class="iconbtn del" onclick="event.stopPropagation();delCierre('${c.id}')" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>`;
+    const comTxt = who==='Mitad' ? `${sig}${nfmt(c.comision)} <span style="color:var(--ink3);font-weight:400">(${sig}${nfmt(Math.round((+c.comision||0)/2))} c/u)</span>` : `${sig}${nfmt(c.comision)}`;
+    return `<div class="srow" ${open}>
+      <div class="srow-main"><div class="srow-tit">${esc(c.cliente)} ${linked?'<span class="badge badge-green" style="vertical-align:middle">🔗 Tarjeta</span>':''}</div>
+        <div class="srow-meta">${c.propiedad?esc(c.propiedad)+' · ':''}${esc(c.tipo)} · ${fechaLarga(c.fecha)}</div>
+        <div class="tags" style="margin-top:8px">
+          <span class="badge badge-${COBRA_BADGE[who]}">Cobra: ${esc(who)}</span>
+          ${c.monto?`<span class="tag">Operación: <b>${sig}${nfmt(c.monto)}</b></span>`:''}
+          <span class="tag"><b>Comisión: ${comTxt}</b></span>
+        </div>
+        ${c.notas?`<div class="srow-notas">${esc(c.notas)}</div>`:''}</div>
+      <div class="srow-right">
+        <button class="btn sm ${rep?'':'success'}" onclick="event.stopPropagation();toggleRepartido('${c.id}')" title="${rep?'Marcar como pendiente':'Marcar como repartido'}">${rep?'✓ Repartido':'Repartir'}</button>
+        <div class="acts">${edit}</div>
+      </div>
+    </div>`;}).join(''):`<div class="empty">Todavía no registraste cierres.</div>`;
+}
+function toggleRepartido(id){ const c=db.cierres.find(x=>x.id===id); if(!c)return; c.repartido=!c.repartido; save(); renderCierres(); renderResumen(); }
+function delCierre(id){ if(!confirm('¿Eliminar este cierre?'))return; db.cierres=db.cierres.filter(c=>c.id!==id); save(); renderCierres(); renderResumen(); }
+
+/* ============ Contactos ============ */
+let contactoQuery='';
+function setContactoQuery(v){ contactoQuery=v; renderContactos(); }
+function renderContactos(){
+  let orden=db.contactos.slice().sort((a,b)=>(a.refInt?1:0)-(b.refInt?1:0));
+  const norm=s=>(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const q=norm(contactoQuery.trim());
+  if(q) orden=orden.filter(c=>{ const int=c.refInt?db.interesados.find(i=>i.id===c.refInt):null; return norm([c.nombre,c.rol,c.tel,c.notas,int&&int.nombre,int&&int.busca].filter(Boolean).join(' ')).includes(q); });
+  $('#contactos').innerHTML=orden.length?orden.map(c=>{
+    const int=c.refInt?db.interesados.find(i=>i.id===c.refInt):null;
+    const linked=!!int;
+    const open= linked ? `onclick="openInteresado('${c.refInt}')" style="cursor:pointer"` : '';
+    const meta= linked ? `Viene de la tarjeta «${esc(int.nombre)}» · ${esc(int.busca)} · ${esc(int.estado)}` : esc(c.rol||'');
+    return `<div class="srow" ${open}>
+      <div class="srow-main"><div class="srow-tit">${esc(c.nombre)} ${linked?'<span class="badge badge-green" style="vertical-align:middle">🔗 Interesado</span>':''}</div><div class="srow-meta">${meta}</div>${c.notas?`<div class="srow-notas">${esc(c.notas)}</div>`:''}</div>
+      <div class="srow-right">${c.tel?`<a class="btn success sm" href="${waLink(c.tel)}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
+        <div class="acts">${linked?'':`<button class="iconbtn" onclick="event.stopPropagation();openContacto('${c.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`}
+        <button class="iconbtn del" onclick="event.stopPropagation();${linked?`openInteresado('${c.refInt}')`:`delContacto('${c.id}')`}" title="${linked?'Se edita desde el interesado':'Eliminar'}">${linked?'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h9\"/><path d=\"M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z\"/></svg>':'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14\"/></svg>'}</button></div>
+      </div>
+    </div>`;}).join(''):`<div class="empty">${q?'No se encontraron contactos.':'No hay contactos cargados.'}</div>`;
+}
+function delContacto(id){ if(!confirm('¿Eliminar contacto?'))return; db.contactos=db.contactos.filter(c=>c.id!==id); save(); renderContactos(); }
+
+/* ============ Modales ============ */
+function closeModal(){ $('#modalBg').classList.remove('open'); $('#modal').innerHTML=''; }
+$('#modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg')closeModal(); });
+function opt(arr,sel){ return arr.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join(''); }
+
+let tmpBita=[];
+function openInteresado(id,prefFecha){
+  const i=id?db.interesados.find(x=>x.id===id):null;
+  tmpBita=i?(i.bitacora||[]).slice():[];
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${i?'Editar interesado':'Nuevo interesado'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre / referencia</label><input id="f-nombre" value="${i?esc(i.nombre):''}" placeholder="Ej: Carla y Nahuel"></div>
+      <div class="g2"><div class="field"><label>WhatsApp / teléfono</label><input id="f-tel" value="${i?esc(i.tel):''}" placeholder="549347..."></div>
+        <div class="field"><label>Qué busca</label><select id="f-busca">${opt(BUSCA,i?i.busca:'Lote')}</select></div></div>
+      <div class="g2"><div class="field"><label>Zona de interés</label><input id="f-zona" value="${i?esc(i.zona):''}"></div>
+        <div class="field"><label>Presupuesto que maneja</label><input id="f-presu" value="${i?esc(i.presupuesto):''}" placeholder="Ej: USD 20.000"></div></div>
+      <div class="g2"><div class="field"><label>Canal (por dónde llegó)</label><select id="f-canal">${opt(CANALES,i?i.canal:'Instagram')}</select></div>
+        <div class="field"><label>Propiedad de interés</label><input id="f-prop" value="${i?esc(i.propiedad):''}" placeholder="Ej: Lote 14"></div></div>
+      <div class="g2"><div class="field"><label>Estado</label><select id="f-estado">${opt(ESTADOS,i?i.estado:'Nuevo')}</select></div>
+        <div class="field"><label>Prioridad</label><select id="f-prio">${opt(PRIOS,i?i.prioridad:'Media')}</select></div></div>
+      <div class="field"><label>Próxima acción / cita</label><input id="f-proxtxt" value="${i&&i.proxima?esc(i.proxima.txt):''}" placeholder="Ej: Visita al lote 14 / Llamar"></div>
+      <div class="g2"><div class="field"><label>¿Cuándo?</label><input type="date" id="f-proxfec" value="${(i&&i.proxima&&i.proxima.fecha)||prefFecha||''}"></div>
+        <div class="field"><label>Hora</label><input type="time" id="f-proxhora" value="${i&&i.proxima?(i.proxima.hora||''):''}"></div></div>
+      <div class="field"><label>Agregar nota</label><textarea id="f-notas" placeholder="Escribí una nota… se guarda con la fecha en el historial de abajo (no se pisa)"></textarea></div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin:2px 0 10px"><div class="sec-title" style="font-size:14px;margin:0">💰 Cierre de la operación</div><div class="hint">Se registra solo en la solapa Cierres cuando el Estado es «Cerrado».</div></div>
+      <div class="g3">
+        <div class="field"><label>Monto de cierre</label><input type="number" id="f-monto" value="${i&&i.montoOp?i.montoOp:''}" placeholder="Ej: 25000" oninput="calcCom()"></div>
+        <div class="field"><label>Comisión (%)</label><input type="number" id="f-compct" value="${i&&i.comPct?i.comPct:''}" placeholder="Ej: 5" oninput="calcCom()"></div>
+        <div class="field"><label>Moneda</label><select id="f-moneda" onchange="calcCom()"><option ${(!i||i.moneda==='USD')?'selected':''}>USD</option><option ${i&&i.moneda==='$'?'selected':''}>$</option></select></div>
+      </div>
+      <div class="g2"><div class="field"><label>¿Quién cobra?</label><select id="f-cobra">${opt(COBRA,i?(i.cobra||'Mitad'):'Mitad')}</select><div class="hint">«Mitad» divide la comisión 50/50 entre Fran y Cande.</div></div>
+        <div class="field"><label>Fecha de cierre</label><input type="date" id="f-fechacierre" value="${i&&i.fechaCierre?i.fechaCierre:''}"><div class="hint">Vacía = fecha de hoy.</div></div></div>
+      <div class="hint" id="com-hint" style="margin:-4px 0 12px;font-weight:600;color:var(--green)"></div>
+      <div class="field"><label>Historial (notas y contactos)</label><div id="bitaList"></div>
+        <div class="bita-add"><div class="g2" style="margin-bottom:8px"><input type="date" id="b-fec" value="${todayISO()}"><select id="b-tipo"><option>Nota</option><option>WhatsApp</option><option>Llamado</option><option>Visita</option><option>Reunión</option><option>Otro</option></select></div>
+          <input id="b-txt" placeholder="Qué pasó / qué anotás" style="width:100%;margin-bottom:8px;padding:9px 11px;border:1px solid var(--border2);border-radius:7px">
+          <button class="btn sm" onclick="addBita()">+ Agregar al historial</button></div></div>
+      <div class="modal-foot">${i?`<button class="btn ghost" style="color:var(--red);margin-right:auto" onclick="delInteresado('${i.id}');closeModal()">Eliminar</button>`:''}
+        <button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveInteresado('${i?i.id:''}')">Guardar</button></div>
+    </div>`;
+  renderBita(); calcCom(); $('#modalBg').classList.add('open');
+}
+function calcCom(){ const m=+($('#f-monto')?.value)||0, p=+($('#f-compct')?.value)||0, mo=($('#f-moneda')?.value)||'USD'; const el=$('#com-hint'); if(!el)return; const c=Math.round(m*p/100); el.textContent = c? `Comisión: ${mo==='USD'?'US$':'$'}${nfmt(c)}  (${p}% de ${mo==='USD'?'US$':'$'}${nfmt(m)})` : 'Comisión = monto × %'; }
+function renderBita(){ const el=$('#bitaList'); if(!el)return;
+  el.innerHTML=tmpBita.length?`<div class="hist-list" style="margin:0 0 10px">${tmpBita.slice().reverse().map((h,ri)=>{const idx=tmpBita.length-1-ri;return `<div class="hist-item"><span class="hf">${fechaLarga(h.fecha)}</span><span class="ht">${esc(h.tipo)}</span>${esc(h.txt)} <button onclick="rmBita(${idx})" style="border:0;background:none;color:var(--red);cursor:pointer;font-size:10px">quitar</button></div>`;}).join('')}</div>`:''; }
+function addBita(){ const t=$('#b-txt').value.trim(); if(!t)return; tmpBita.push({fecha:$('#b-fec').value||todayISO(),tipo:$('#b-tipo').value,txt:t}); $('#b-txt').value=''; renderBita(); }
+function rmBita(i){ tmpBita.splice(i,1); renderBita(); }
+function saveInteresado(id){
+  const nombre=$('#f-nombre').value.trim(); if(!nombre){alert('Poné un nombre');return;}
+  // la nota escrita se guarda en el historial con fecha
+  const notaTxt=$('#f-notas').value.trim(); if(notaTxt) tmpBita.push({fecha:todayISO(),tipo:'Nota',txt:notaTxt});
+  const o={nombre,tel:$('#f-tel').value.trim(),busca:$('#f-busca').value,zona:$('#f-zona').value.trim(),presupuesto:$('#f-presu').value.trim(),canal:$('#f-canal').value,propiedad:$('#f-prop').value.trim(),estado:$('#f-estado').value,prioridad:$('#f-prio').value,proxima:{txt:$('#f-proxtxt').value.trim(),fecha:$('#f-proxfec').value,hora:$('#f-proxhora').value},notas:'',montoOp:+$('#f-monto').value||0,comPct:+$('#f-compct').value||0,moneda:$('#f-moneda').value,fechaCierre:$('#f-fechacierre').value,cobra:$('#f-cobra').value,bitacora:tmpBita};
+  let obj;
+  if(id){ obj=db.interesados.find(x=>x.id===id); Object.assign(obj,o); }
+  else { o.id=uid(); o.alta=todayISO(); db.interesados.unshift(o); obj=o; }
+  syncContacto(obj); syncCierre(obj);
+  save(); closeModal(); renderAll();
+}
+// Enlaza cada interesado con un contacto (mismo nombre + teléfono)
+function syncContacto(i){
+  let c=db.contactos.find(x=>x.refInt===i.id);
+  if(c){ c.nombre=i.nombre; c.tel=i.tel; }
+  else { db.contactos.unshift({id:uid(), refInt:i.id, nombre:i.nombre, rol:'Interesado', tel:i.tel, notas:(i.busca||'')+(i.zona?' · '+i.zona:'')}); }
+}
+// Genera/actualiza el cierre automático cuando el interesado queda «Cerrado»
+function syncCierre(i){
+  let c=db.cierres.find(x=>x.refInt===i.id);
+  if(i.estado==='Cerrado'){
+    const monto=+i.montoOp||0, pct=+i.comPct||0, comision=Math.round(monto*pct/100);
+    const tipo=i.busca==='Alquiler'?'Alquiler':'Venta';
+    const fecha=i.fechaCierre||(c&&c.fecha)||todayISO();
+    const cobra=i.cobra||'Mitad';
+    if(c){ Object.assign(c,{cliente:i.nombre,propiedad:i.propiedad,tipo,moneda:i.moneda||'USD',monto,comision,fecha,cobra}); }
+    else { db.cierres.unshift({id:uid(),refInt:i.id,cliente:i.nombre,propiedad:i.propiedad,tipo,moneda:i.moneda||'USD',monto,comision,fecha,cobra,repartido:false,notas:''}); }
+  } else if(c){ db.cierres=db.cierres.filter(x=>x.refInt!==i.id); }
+}
+
+function openEvento(id,fecha){
+  const e=id?db.eventos.find(x=>x.id===id):null;
+  const intOpts=`<option value="">— sin vincular —</option>`+db.interesados.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(x=>`<option value="${x.id}" ${e&&e.interesadoId===x.id?'selected':''}>${esc(x.nombre)}</option>`).join('');
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${e?'Editar evento':'Nuevo evento de agenda'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Título</label><input id="e-tit" value="${e?esc(e.titulo):''}" placeholder="Ej: Reunión con escribano"></div>
+      <div class="g2"><div class="field"><label>Fecha</label><input type="date" id="e-fec" value="${e?e.fecha:(fecha||todayISO())}"></div>
+        <div class="field"><label>Hora</label><input type="time" id="e-hora" value="${e?e.hora:''}"></div></div>
+      <div class="g2"><div class="field"><label>Tipo</label><select id="e-tipo">${opt(EV_TIPOS,e?e.tipo:'Reunión')}</select></div>
+        <div class="field"><label>Lugar</label><input id="e-lugar" value="${e?esc(e.lugar):''}" placeholder="Ej: Escribanía Rossi"></div></div>
+      <div class="field"><label>Vincular a un interesado (opcional)</label><select id="e-int">${intOpts}</select><div class="hint">Si lo vinculás, queda anotado en el historial de esa tarjeta.</div></div>
+      <div class="field"><label>Notas</label><textarea id="e-notas">${e?esc(e.notas):''}</textarea></div>
+      <div class="modal-foot">${e?`<button class="btn ghost" style="color:var(--red);margin-right:auto" onclick="delEv('${e.id}');closeModal()">Eliminar</button>`:''}<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveEvento('${e?e.id:''}')">Guardar</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function saveEvento(id){
+  const t=$('#e-tit').value.trim(); if(!t){alert('Poné un título');return;}
+  const o={titulo:t,fecha:$('#e-fec').value||todayISO(),hora:$('#e-hora').value,tipo:$('#e-tipo').value,lugar:$('#e-lugar').value.trim(),notas:$('#e-notas').value.trim(),interesadoId:$('#e-int').value};
+  let ev;
+  if(id){ ev=db.eventos.find(x=>x.id===id); Object.assign(ev,o); }
+  else { o.id=uid(); o.hecho=false; db.eventos.push(o); ev=o; selDay=o.fecha; const dt=new Date(o.fecha+'T00:00'); calY=dt.getFullYear(); calM=dt.getMonth(); }
+  syncEventoNota(ev);
+  save(); closeModal(); renderAll();
+}
+// Si el evento está vinculado a un interesado, lo deja anotado en su historial
+function syncEventoNota(ev){
+  db.interesados.forEach(i=>{ if(i.bitacora) i.bitacora=i.bitacora.filter(b=>b.refEv!==ev.id); });
+  if(ev.interesadoId){ const i=db.interesados.find(x=>x.id===ev.interesadoId); if(i){ i.bitacora=i.bitacora||[]; i.bitacora.push({fecha:ev.fecha||todayISO(),tipo:'Agenda',txt:`${ev.tipo}: ${ev.titulo}${ev.hora?' · '+ev.hora:''}${ev.lugar?' · '+ev.lugar:''}`,refEv:ev.id}); i.bitacora.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')); } }
+}
+
+function openPropiedad(id){
+  const p=id?db.propiedades.find(x=>x.id===id):null;
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${p?'Editar propiedad':'Nueva propiedad'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Título</label><input id="p-tit" value="${p?esc(p.titulo):''}" placeholder="Ej: Lote 14 — sector arboleda"></div>
+      <div class="g2"><div class="field"><label>Tipo</label><select id="p-tipo">${opt(BUSCA,p?p.tipo:'Lote')}</select></div>
+        <div class="field"><label>Estado</label><select id="p-estado">${opt(PROP_ESTADOS,p?p.estado:'Disponible')}</select></div></div>
+      <div class="g2"><div class="field"><label>Zona</label><input id="p-zona" value="${p?esc(p.zona):''}"></div>
+        <div class="field"><label>Precio</label><input id="p-precio" value="${p?esc(p.precio):''}" placeholder="Ej: USD 18.000"></div></div>
+      <div class="field"><label>Notas</label><textarea id="p-notas">${p?esc(p.notas):''}</textarea></div>
+      <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePropiedad('${p?p.id:''}')">Guardar</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function savePropiedad(id){
+  const t=$('#p-tit').value.trim(); if(!t){alert('Poné un título');return;}
+  const o={titulo:t,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),notas:$('#p-notas').value.trim()};
+  if(id) Object.assign(db.propiedades.find(x=>x.id===id),o); else {o.id=uid();db.propiedades.unshift(o);}
+  save(); closeModal(); renderPropiedades(); renderFilProp(); renderNav();
+}
+
+function openCierre(id){
+  const c=id?db.cierres.find(x=>x.id===id):null;
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${c?'Editar cierre':'Nuevo cierre'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Cliente</label><input id="ci-cli" value="${c?esc(c.cliente):''}" placeholder="Ej: Flia. Romero"></div>
+      <div class="g2"><div class="field"><label>Propiedad</label><input id="ci-prop" value="${c?esc(c.propiedad):''}"></div>
+        <div class="field"><label>Tipo</label><select id="ci-tipo">${opt(CIERRE_TIPOS,c?c.tipo:'Venta')}</select></div></div>
+      <div class="g2"><div class="field"><label>Moneda</label><select id="ci-mon"><option ${c&&c.moneda==='USD'?'selected':''}>USD</option><option ${c&&c.moneda==='$'?'selected':''}>$</option></select></div>
+        <div class="field"><label>Fecha</label><input type="date" id="ci-fec" value="${c?c.fecha:todayISO()}"></div></div>
+      <div class="g2"><div class="field"><label>Valor operación</label><input type="number" id="ci-monto" value="${c?c.monto:''}" placeholder="Opcional"></div>
+        <div class="field"><label>Comisión</label><input type="number" id="ci-com" value="${c?c.comision:''}" placeholder="Ej: 1100"></div></div>
+      <div class="g2"><div class="field"><label>¿Quién cobra?</label><select id="ci-cobra">${opt(COBRA,c?(c.cobra||'Mitad'):'Mitad')}</select></div>
+        <div class="field"><label>Reparto</label><select id="ci-rep"><option value="no" ${c&&c.repartido?'':'selected'}>Pendiente de repartir</option><option value="si" ${c&&c.repartido?'selected':''}>Ya repartido</option></select></div></div>
+      <div class="field"><label>Notas</label><textarea id="ci-notas">${c?esc(c.notas):''}</textarea></div>
+      <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveCierre('${c?c.id:''}')">Guardar</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function saveCierre(id){
+  const cli=$('#ci-cli').value.trim(); if(!cli){alert('Poné el cliente');return;}
+  const o={cliente:cli,propiedad:$('#ci-prop').value.trim(),tipo:$('#ci-tipo').value,moneda:$('#ci-mon').value,fecha:$('#ci-fec').value||todayISO(),monto:+$('#ci-monto').value||0,comision:+$('#ci-com').value||0,cobra:$('#ci-cobra').value,repartido:$('#ci-rep').value==='si',notas:$('#ci-notas').value.trim()};
+  if(id) Object.assign(db.cierres.find(x=>x.id===id),o); else {o.id=uid();db.cierres.unshift(o);}
+  save(); closeModal(); renderCierres(); renderResumen();
+}
+
+function openContacto(id){
+  const c=id?db.contactos.find(x=>x.id===id):null;
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${c?'Editar contacto':'Nuevo contacto'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre</label><input id="c-nom" value="${c?esc(c.nombre):''}" placeholder="Ej: Escribanía Rossi"></div>
+      <div class="g2"><div class="field"><label>Rol</label><input id="c-rol" value="${c?esc(c.rol):''}" placeholder="Ej: Escribano"></div>
+        <div class="field"><label>WhatsApp / teléfono</label><input id="c-tel" value="${c?esc(c.tel):''}"></div></div>
+      <div class="field"><label>Notas</label><textarea id="c-notas">${c?esc(c.notas):''}</textarea></div>
+      <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveContacto('${c?c.id:''}')">Guardar</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function saveContacto(id){
+  const n=$('#c-nom').value.trim(); if(!n){alert('Poné un nombre');return;}
+  const o={nombre:n,rol:$('#c-rol').value.trim(),tel:$('#c-tel').value.trim(),notas:$('#c-notas').value.trim()};
+  if(id) Object.assign(db.contactos.find(x=>x.id===id),o); else {o.id=uid();db.contactos.unshift(o);}
+  save(); closeModal(); renderContactos();
+}
+
+/* ============ Init ============ */
+function renderAll(){
+  renderNav(); renderResumen();
+  renderFilEstado(); renderInteresados();
+  renderAgenda();
+  renderFilProp(); renderPropiedades();
+  renderCierres(); renderContactos();
+}
+renderAll(); go('resumen');
+</script>
+</body>
+</html>
