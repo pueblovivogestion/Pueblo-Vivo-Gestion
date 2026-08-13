@@ -349,6 +349,17 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
     <div class="simple" id="cierres"></div>
   </div>
 
+  <!-- CAJA -->
+  <div class="page" id="page-caja">
+    <div class="page-hdr">
+      <div><h2>Caja</h2><div class="sub">Comisiones y movimientos de la inmo</div></div>
+      <button class="btn primary" onclick="openMov()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Movimiento</button>
+    </div>
+    <div id="caja-resumen"></div>
+    <div class="subnav" id="fil-caja"></div>
+    <div class="simple" id="caja-lista"></div>
+  </div>
+
   <!-- CONTACTOS -->
   <div class="page" id="page-contactos">
     <div class="page-hdr">
@@ -386,11 +397,15 @@ const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
 const COBRA_BADGE={'Fran':'green','Cande':'amber','Mitad':'gray'};
+const MOV_TIPOS=['Ingreso','Gasto'];
+const QUIEN=['Fran','Cande','Ambas'];
+const QUIEN_BADGE={'Fran':'green','Cande':'amber','Ambas':'gray'};
+const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos','Otro'];
 
-let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[]};
+let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
 function applyMigrations(){
   const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
   db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
@@ -560,6 +575,7 @@ function seed(){
       {id:uid(),nombre:'Juan (agrimensor)',rol:'Mensuras',tel:'5493471333444',notas:'Subdivisiones y planos.'},
       {id:uid(),nombre:'Los Pérez',rol:'Referentes',tel:'5493471555666',notas:'Ya trajeron 3 clientes.'},
     ],
+    movimientos:[],
   };
 }
 
@@ -581,7 +597,7 @@ function cuando(d){
   return `<span class="accion-cuando">en ${d} d</span>`;
 }
 
-const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['cierres','Cierres'],['contactos','Contactos']];
+const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['cierres','Cierres'],['caja','Caja'],['contactos','Contactos']];
 let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos';
 
 function renderNav(){
@@ -597,7 +613,7 @@ function go(k){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   $('#page-'+k).classList.add('active');
   renderNav();
-  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,contactos:openContacto};
+  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,caja:openMov,contactos:openContacto};
   $('#fab').onclick=map[k]||openInteresado;
   window.scrollTo(0,0);
 }
@@ -870,7 +886,80 @@ function renderCierres(){
     </div>`;}).join(''):`<div class="empty">Todavía no registraste cierres.</div>`;
 }
 function toggleRepartido(id){ const c=db.cierres.find(x=>x.id===id); if(!c)return; c.repartido=!c.repartido; save(); renderCierres(); renderResumen(); }
-function delCierre(id){ if(!confirm('¿Eliminar este cierre?'))return; db.cierres=db.cierres.filter(c=>c.id!==id); save(); renderCierres(); renderResumen(); }
+function delCierre(id){ if(!confirm('¿Eliminar este cierre?'))return; db.cierres=db.cierres.filter(c=>c.id!==id); save(); renderCierres(); renderResumen(); renderCaja(); }
+
+/* ============ Caja ============ */
+let filtroCaja='Todos';
+// junta las comisiones de los cierres (auto) + los movimientos manuales
+function cajaMovimientos(){
+  const items=[];
+  db.cierres.forEach(c=>{ const m=+c.comision||0; if(!m) return;
+    items.push({id:'ci_'+c.id, fecha:c.fecha, tipo:'Ingreso', desc:'Comisión · '+(c.cliente||''), monto:m, moneda:c.moneda||'USD', quien:(c.cobra==='Mitad'?'Ambas':(c.cobra||'Ambas')), cat:'Comisión', auto:true, refInt:c.refInt}); });
+  db.movimientos.forEach(x=>items.push({...x, auto:false}));
+  return items.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+}
+function cajaTotales(items){
+  const t={total:{usd:0,ars:0},Fran:{usd:0,ars:0},Cande:{usd:0,ars:0}};
+  items.forEach(it=>{ const cur=it.moneda==='USD'?'usd':'ars', v=(it.tipo==='Gasto'?-1:1)*(+it.monto||0);
+    t.total[cur]+=v;
+    if(it.quien==='Fran') t.Fran[cur]+=v; else if(it.quien==='Cande') t.Cande[cur]+=v;
+    else { t.Fran[cur]+=v/2; t.Cande[cur]+=v/2; } });
+  return t;
+}
+function setFilCaja(k){ filtroCaja=k; renderCaja(); }
+function renderCaja(){
+  const items=cajaMovimientos();
+  const t=cajaTotales(items);
+  $('#caja-resumen').innerHTML=`
+    <div class="reparto">
+      <div class="reparto-t">💵 Saldo de caja · por socia</div>
+      <div class="reparto-grid">
+        <div class="rep-col"><div class="rep-name"><span class="sw" style="background:var(--green)"></span>Fran</div><div class="rep-val">${dual(t.Fran)}</div></div>
+        <div class="rep-sep"></div>
+        <div class="rep-col"><div class="rep-name"><span class="sw" style="background:var(--amber)"></span>Cande</div><div class="rep-val">${dual(t.Cande)}</div></div>
+      </div>
+      <div class="reparto-pend"><span>Total en caja</span><span class="amt" style="color:${(t.total.usd<0||t.total.ars<0)?'var(--red)':'var(--green)'}">${dual(t.total)}</span></div>
+    </div>`;
+  const filtros=['Todos','Ingreso','Gasto'];
+  $('#fil-caja').innerHTML=filtros.map(f=>`<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${f==='Todos'?items.length:items.filter(i=>i.tipo===f).length}</span></button>`).join('');
+  let list=items; if(filtroCaja!=='Todos') list=items.filter(i=>i.tipo===filtroCaja);
+  $('#caja-lista').innerHTML=list.length?list.map(it=>{
+    const sig=it.moneda==='USD'?'US$':'$', ing=it.tipo==='Ingreso', col=ing?'var(--green)':'var(--red)';
+    const acts= it.auto
+      ? (it.refInt?`<button class="iconbtn" title="Ver interesado" onclick="event.stopPropagation();openInteresado('${it.refInt}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`:'')
+      : `<button class="iconbtn" title="Editar" onclick="event.stopPropagation();openMov('${it.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+        <button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delMov('${it.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>`;
+    return `<div class="srow">
+      <div class="srow-main"><div class="srow-tit" style="font-size:14px">${ing?'▲':'▼'} ${esc(it.desc||it.cat||'Movimiento')} ${it.auto?'<span class="badge badge-gray" style="vertical-align:middle">auto</span>':''}</div>
+        <div class="srow-meta">${fechaLarga(it.fecha)}${it.cat?' · '+esc(it.cat):''} · <span class="badge badge-${QUIEN_BADGE[it.quien]||'gray'}">${esc(it.quien||'Ambas')}</span></div></div>
+      <div class="srow-right"><span class="srow-precio" style="color:${col}">${ing?'+':'−'}${sig}${nfmt(Math.abs(+it.monto||0))}</span><div class="acts">${acts}</div></div>
+    </div>`;
+  }).join(''):`<div class="empty">No hay movimientos todavía.</div>`;
+}
+function openMov(id){
+  const m=id?db.movimientos.find(x=>x.id===id):null;
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${m?'Editar movimiento':'Nuevo movimiento'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="g2"><div class="field"><label>Tipo</label><select id="m-tipo">${opt(MOV_TIPOS,m?m.tipo:'Ingreso')}</select></div>
+        <div class="field"><label>Fecha</label><input type="date" id="m-fec" value="${m?m.fecha:todayISO()}"></div></div>
+      <div class="field"><label>Descripción</label><input id="m-desc" value="${m?esc(m.desc):''}" placeholder="Ej: Seña Casa Los Aromos / Publicidad Instagram"></div>
+      <div class="g2"><div class="field"><label>Monto</label><input type="number" id="m-monto" value="${m?m.monto:''}" placeholder="Ej: 50000"></div>
+        <div class="field"><label>Moneda</label><select id="m-mon"><option ${!m||m.moneda==='USD'?'selected':''}>USD</option><option ${m&&m.moneda==='$'?'selected':''}>$</option></select></div></div>
+      <div class="g2"><div class="field"><label>¿De quién?</label><select id="m-quien">${opt(QUIEN,m?m.quien:'Ambas')}</select><div class="hint">«Ambas» reparte 50/50.</div></div>
+        <div class="field"><label>Categoría</label><select id="m-cat">${opt(CAJA_CAT,m?m.cat:'Otro')}</select></div></div>
+      <div class="modal-foot">${m?`<button class="btn ghost" style="color:var(--red);margin-right:auto" onclick="delMov('${m.id}');closeModal()">Eliminar</button>`:''}<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveMov('${m?m.id:''}')">Guardar</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function saveMov(id){
+  const desc=$('#m-desc').value.trim(); const monto=+$('#m-monto').value||0;
+  if(!monto){ alert('Poné un monto'); return; }
+  const o={tipo:$('#m-tipo').value,fecha:$('#m-fec').value||todayISO(),desc,monto,moneda:$('#m-mon').value,quien:$('#m-quien').value,cat:$('#m-cat').value};
+  if(id) Object.assign(db.movimientos.find(x=>x.id===id),o); else { o.id=uid(); db.movimientos.unshift(o); }
+  save(); closeModal(); renderCaja();
+}
+function delMov(id){ if(!confirm('¿Eliminar este movimiento?'))return; db.movimientos=db.movimientos.filter(m=>m.id!==id); save(); renderCaja(); }
 
 /* ============ Contactos ============ */
 let contactoQuery='';
@@ -1050,7 +1139,7 @@ function saveCierre(id){
   const cli=$('#ci-cli').value.trim(); if(!cli){alert('Poné el cliente');return;}
   const o={cliente:cli,propiedad:$('#ci-prop').value.trim(),tipo:$('#ci-tipo').value,moneda:$('#ci-mon').value,fecha:$('#ci-fec').value||todayISO(),monto:+$('#ci-monto').value||0,comision:+$('#ci-com').value||0,cobra:$('#ci-cobra').value,repartido:$('#ci-rep').value==='si',notas:$('#ci-notas').value.trim()};
   if(id) Object.assign(db.cierres.find(x=>x.id===id),o); else {o.id=uid();db.cierres.unshift(o);}
-  save(); closeModal(); renderCierres(); renderResumen();
+  save(); closeModal(); renderCierres(); renderResumen(); renderCaja();
 }
 
 function openContacto(id){
@@ -1079,7 +1168,7 @@ function renderAll(){
   renderFilEstado(); renderInteresados();
   renderAgenda();
   renderFilProp(); renderPropiedades();
-  renderCierres(); renderContactos();
+  renderCierres(); renderCaja(); renderContactos();
 }
 boot();
 </script>
