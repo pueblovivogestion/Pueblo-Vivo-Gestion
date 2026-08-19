@@ -255,6 +255,14 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
   background:var(--ink);color:#fff;border:0;box-shadow:0 4px 16px rgba(28,25,23,.25);display:grid;place-items:center}
 .fab svg{width:24px;height:24px}.fab:hover{background:#333}
 
+/* ── TAREAS / NOTAS ── */
+.tarea{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 13px;box-shadow:var(--sh);margin-bottom:8px}
+.tarea-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--border2);background:var(--bg);flex:0 0 auto;display:grid;place-items:center;color:#fff;font-size:15px;line-height:1;cursor:pointer;transition:all .12s}
+.tarea.hecha .tarea-check{background:var(--green);border-color:var(--green)}
+.tarea-txt{flex:1;font-size:14.5px;line-height:1.4;word-break:break-word}
+.tarea.hecha .tarea-txt{text-decoration:line-through;color:var(--ink3)}
+.tarea .iconbtn{flex:0 0 auto}
+.notas-sub{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin:16px 0 9px}
 @media(max-width:640px){
   .g2,.g3{grid-template-columns:1fr}
   .fun-row{grid-template-columns:110px 1fr 24px}
@@ -360,6 +368,18 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
     <div class="simple" id="caja-lista"></div>
   </div>
 
+  <!-- NOTAS / TAREAS -->
+  <div class="page" id="page-notas">
+    <div class="page-hdr"><div><h2>Notas</h2><div class="sub">Lista de tareas — marcá cuando estén hechas</div></div></div>
+    <div class="sec" style="padding:14px 16px">
+      <div style="display:flex;gap:8px">
+        <input id="tarea-input" placeholder="Escribí una tarea y Enter…" onkeydown="if(event.key==='Enter')addTarea()" style="flex:1;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px">
+        <button class="btn success" onclick="addTarea()">Agregar</button>
+      </div>
+    </div>
+    <div id="notas-lista"></div>
+  </div>
+
   <!-- CONTACTOS -->
   <div class="page" id="page-contactos">
     <div class="page-hdr">
@@ -402,10 +422,10 @@ const QUIEN=['Fran','Cande','Ambas'];
 const QUIEN_BADGE={'Fran':'green','Cande':'amber','Ambas':'gray'};
 const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos','Otro'];
 
-let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[]};
+let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[],tareas:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
 function applyMigrations(){
   const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
   db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
@@ -576,6 +596,7 @@ function seed(){
       {id:uid(),nombre:'Los Pérez',rol:'Referentes',tel:'5493471555666',notas:'Ya trajeron 3 clientes.'},
     ],
     movimientos:[],
+    tareas:[],
   };
 }
 
@@ -597,7 +618,7 @@ function cuando(d){
   return `<span class="accion-cuando">en ${d} d</span>`;
 }
 
-const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['contactos','Contactos'],['cierres','Cierres']];
+const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
 let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos';
 
 function renderNav(){
@@ -613,7 +634,7 @@ function go(k){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   $('#page-'+k).classList.add('active');
   renderNav();
-  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,caja:openMov,contactos:openContacto};
+  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,caja:openMov,notas:()=>document.getElementById('tarea-input')?.focus(),contactos:openContacto};
   $('#fab').onclick=map[k]||openInteresado;
   window.scrollTo(0,0);
 }
@@ -961,6 +982,28 @@ function saveMov(id){
 }
 function delMov(id){ if(!confirm('¿Eliminar este movimiento?'))return; db.movimientos=db.movimientos.filter(m=>m.id!==id); save(); renderCaja(); }
 
+/* ============ Notas / tareas ============ */
+function renderNotas(){
+  const row=t=>`<div class="tarea ${t.hecho?'hecha':''}">
+    <button class="tarea-check" onclick="toggleTarea('${t.id}')" title="${t.hecho?'Marcar sin hacer':'Marcar hecha'}">${t.hecho?'✓':''}</button>
+    <span class="tarea-txt">${esc(t.txt)}</span>
+    <button class="iconbtn del" onclick="delTarea('${t.id}')" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+  </div>`;
+  const pend=db.tareas.filter(t=>!t.hecho), done=db.tareas.filter(t=>t.hecho);
+  let html='';
+  html += pend.length ? pend.map(row).join('') : (done.length?'':`<div class="empty">No hay tareas. Escribí una arriba 👆</div>`);
+  if(done.length) html += `<div class="notas-sub">✓ Hechas (${done.length})</div>`+done.map(row).join('');
+  $('#notas-lista').innerHTML=html;
+}
+function addTarea(){
+  const el=$('#tarea-input'); const t=el.value.trim(); if(!t)return;
+  db.tareas.unshift({id:uid(),txt:t,hecho:false});
+  el.value=''; el.focus();
+  save(); renderNotas();
+}
+function toggleTarea(id){ const t=db.tareas.find(x=>x.id===id); if(!t)return; t.hecho=!t.hecho; save(); renderNotas(); }
+function delTarea(id){ db.tareas=db.tareas.filter(t=>t.id!==id); save(); renderNotas(); }
+
 /* ============ Contactos ============ */
 let contactoQuery='';
 function setContactoQuery(v){ contactoQuery=v; renderContactos(); }
@@ -1171,7 +1214,7 @@ function renderAll(){
   renderFilEstado(); renderInteresados();
   renderAgenda();
   renderFilProp(); renderPropiedades();
-  renderCierres(); renderCaja(); renderContactos();
+  renderCierres(); renderCaja(); renderNotas(); renderContactos();
 }
 boot();
 </script>
