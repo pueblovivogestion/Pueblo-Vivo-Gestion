@@ -261,6 +261,7 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .tarea.hecha .tarea-check{background:var(--green);border-color:var(--green)}
 .tarea-txt{flex:1;font-size:14.5px;line-height:1.4;word-break:break-word}
 .tarea.hecha .tarea-txt{text-decoration:line-through;color:var(--ink3)}
+.tarea-edit{border:1px solid var(--green);border-radius:6px;padding:6px 9px;background:var(--bg);color:var(--ink);outline:none}
 .tarea .iconbtn{flex:0 0 auto}
 .notas-sub{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin:16px 0 9px}
 @media(max-width:640px){
@@ -273,6 +274,36 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
   .cal-ev{font-size:8px;padding:0 3px;line-height:1.25}
   .cal-ev.more{display:none}
 }
+/* ── ACCESIBILIDAD: letras más grandes y legibles ── */
+:root{--ink3:#7a746b}
+body{font-size:15px}
+input,select,textarea{font-size:15.5px}
+.nav-btn{font-size:14.5px;font-weight:600}
+.page-hdr h2{font-size:24px}
+.page-hdr .sub{font-size:13.5px}
+.icard-nom{font-size:18px}
+.icard-tipo{font-size:13px}
+.icard-notas{font-size:14px}
+.srow-tit{font-size:16px}
+.srow-meta{font-size:13px}
+.srow-notas{font-size:14px}
+.tag{font-size:12.5px;font-weight:600}
+.badge{font-size:11.5px;font-weight:700}
+.hint{font-size:12.5px}
+.dcard-label{font-size:12px;font-weight:600}
+.dcard-sub{font-size:12.5px}
+.field label{font-size:13px;font-weight:600}
+.accion-item{font-size:14px}
+.accion-col-t{font-size:12px}
+.hist-item{font-size:13px}
+.hist-item .hf{font-size:11.5px}
+.ev-sub{font-size:12.5px}
+.rep-sub{font-size:12px}
+.canal-name{font-size:13.5px}
+.subnav-btn{font-size:13px;font-weight:600}
+.btn{font-size:13.5px;font-weight:600}
+.tarea-txt{font-size:17px}
+.reparto-t,.sec-sub,.notas-sub{font-size:12px}
 </style>
 </head>
 <body>
@@ -983,18 +1014,28 @@ function saveMov(id){
 function delMov(id){ if(!confirm('¿Eliminar este movimiento?'))return; db.movimientos=db.movimientos.filter(m=>m.id!==id); save(); renderCaja(); }
 
 /* ============ Notas / tareas ============ */
+let editTareaId=null;
 function renderNotas(){
-  const row=t=>`<div class="tarea ${t.hecho?'hecha':''}">
-    <button class="tarea-check" onclick="toggleTarea('${t.id}')" title="${t.hecho?'Marcar sin hacer':'Marcar hecha'}">${t.hecho?'✓':''}</button>
-    <span class="tarea-txt">${esc(t.txt)}</span>
-    <button class="iconbtn del" onclick="delTarea('${t.id}')" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
-  </div>`;
+  const row=t=>{
+    const cuerpo = (editTareaId===t.id)
+      ? `<input class="tarea-txt tarea-edit" id="ed-${t.id}" value="${esc(t.txt)}" onkeydown="if(event.key==='Enter')guardarTarea('${t.id}');if(event.key==='Escape'){editTareaId=null;renderNotas();}" onblur="guardarTarea('${t.id}')">`
+      : `<span class="tarea-txt" onclick="editarTarea('${t.id}')" title="Tocá para editar">${esc(t.txt)}</span>`;
+    return `<div class="tarea ${t.hecho?'hecha':''}">
+      <button class="tarea-check" onclick="toggleTarea('${t.id}')" title="${t.hecho?'Marcar sin hacer':'Marcar hecha'}">${t.hecho?'✓':''}</button>
+      ${cuerpo}
+      <button class="iconbtn" onclick="editarTarea('${t.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      <button class="iconbtn del" onclick="delTarea('${t.id}')" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+    </div>`;
+  };
   const pend=db.tareas.filter(t=>!t.hecho), done=db.tareas.filter(t=>t.hecho);
   let html='';
   html += pend.length ? pend.map(row).join('') : (done.length?'':`<div class="empty">No hay tareas. Escribí una arriba 👆</div>`);
   if(done.length) html += `<div class="notas-sub">✓ Hechas (${done.length})</div>`+done.map(row).join('');
   $('#notas-lista').innerHTML=html;
+  if(editTareaId){ const el=document.getElementById('ed-'+editTareaId); if(el){ el.focus(); el.select(); } }
 }
+function editarTarea(id){ editTareaId=id; renderNotas(); }
+function guardarTarea(id){ const el=document.getElementById('ed-'+id); const t=db.tareas.find(x=>x.id===id); if(el&&t){ const v=el.value.trim(); if(v)t.txt=v; } editTareaId=null; save(); renderNotas(); }
 function addTarea(){
   const el=$('#tarea-input'); const t=el.value.trim(); if(!t)return;
   db.tareas.unshift({id:uid(),txt:t,hecho:false});
