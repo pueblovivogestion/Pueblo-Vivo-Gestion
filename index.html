@@ -76,6 +76,43 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .subnav-clr{font-size:11px;color:var(--ink3);align-self:center;margin-left:6px;text-decoration:underline;cursor:pointer}
 .subnav-clr:hover{color:var(--red)}
 
+/* ── PROTOCOLO DE LA PROPIEDAD ── */
+.prot-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.prot-bar{flex:1;height:7px;background:var(--bg2);border-radius:20px;overflow:hidden}
+.prot-fill{height:100%;background:var(--green);border-radius:20px;transition:width .2s}
+.prot-num{font-family:var(--mono);font-size:11px;color:var(--ink3);flex:0 0 auto}
+.prot-et{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--border);
+  border-radius:8px;margin-bottom:6px;cursor:pointer;background:var(--surface)}
+.prot-et:hover{border-color:var(--border2)}
+.prot-et.open{border-color:var(--green);background:var(--green3)}
+.prot-et.done .prot-et-n{background:var(--green);color:#fff;border-color:var(--green)}
+.prot-et-n{flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:1px solid var(--border2);
+  display:grid;place-items:center;font-size:10px;font-family:var(--mono);color:var(--ink2)}
+.prot-et-t{flex:1;font-size:13px;font-weight:500}
+.prot-et-c{font-family:var(--mono);font-size:11px;color:var(--ink3);flex:0 0 auto}
+.prot-chev{font-size:10px;color:var(--ink3);flex:0 0 auto}
+.prot-items{padding:2px 0 12px 10px;margin-bottom:6px}
+.prot-it{padding:7px 10px;border-left:2px solid var(--border);margin-bottom:2px}
+.prot-it.ok{border-left-color:var(--green)}
+.prot-chk{display:flex;gap:9px;align-items:flex-start;cursor:pointer;font-size:13px;line-height:1.45}
+.prot-chk input{margin-top:2px;flex:0 0 auto;width:15px;height:15px;accent-color:var(--green)}
+.prot-it.ok .prot-chk span{color:var(--ink3);text-decoration:line-through}
+.prot-fecha{font-family:var(--mono);font-size:10px;color:var(--green);margin:3px 0 0 24px}
+.prot-obs{width:calc(100% - 24px);margin:6px 0 0 24px;padding:5px 8px;font-size:12px;
+  border:1px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--ink)}
+.prot-nota-add{display:inline-block;margin:4px 0 0 24px;font-size:11px;color:var(--ink3);
+  cursor:pointer;text-decoration:underline}
+.prot-nota-add:hover{color:var(--green)}
+.prot-add{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.prot-add select,.prot-add input{padding:6px 9px;border:1px solid var(--border2);border-radius:6px;
+  background:var(--bg);color:var(--ink);font-size:12.5px}
+.prot-add .txt{flex:1;min-width:150px}
+.prot-log{border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-bottom:6px;background:var(--surface)}
+.prot-log-h{display:flex;align-items:center;gap:8px;font-size:12px}
+.prot-log-h .f{color:var(--ink3);font-family:var(--mono);font-size:10.5px;flex:1}
+.prot-log-t{font-size:12.5px;color:var(--ink2);margin-top:4px;line-height:1.5}
+@media(max-width:640px){ .prot-et-t{font-size:14px} .prot-chk{font-size:14px} .prot-log-t{font-size:13.5px} }
+
 /* ── BADGES ── */
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap}
 .badge-green{background:var(--green3);color:var(--green)}
@@ -441,7 +478,7 @@ const LS_KEY='pv_gestion_v3';
 /* ===== Supabase (nube compartida) ===== */
 const SB_URL='https://nowmwwyyodhiliwlxzqd.supabase.co';
 const SB_KEY='sb_publishable_JOJW88C5lAndYYG6yWGZQg_HfW3wfma';
-let sb=null, cloudReady=false, pushTimer=null, pendingRemote=null, lastJSON='';
+let sb=null, cloudReady=false, pushTimer=null, pendingRemote=null, lastJSON='', huboCambioLocal=false;
 const ESTADOS=['Nuevo','Contactado','Visita agendada','Visitó','Negociando','Reservó / seña','Cerrado','Perdido'];
 const ESTADO_BADGE={'Nuevo':'gray','Contactado':'gray','Visita agendada':'amber','Visitó':'amber','Negociando':'amber','Reservó / seña':'green','Cerrado':'green','Perdido':'gray'};
 const PRIOS=['Alta','Media','Baja'];
@@ -460,6 +497,68 @@ const REF_BADGE={'Fran':'green','Cande':'amber'};
 const CONTRATO=['Sin firmar','Firmado'];
 const CONTRATO_BADGE={'Firmado':'green','Sin firmar':'amber'};
 const AVISO_VENC=30; // días de anticipación con que avisamos un vencimiento
+
+/* Protocolo de cada propiedad. Los id de cada ítem NO se cambian nunca:
+   son la llave con la que queda guardado lo que ya marcaron. Se puede
+   cambiar el texto tranquilo; el id es lo que no se toca. */
+const PROTOCOLO=[
+  {id:'e1',t:'Presentar forma de trabajo',corto:'Presentación',items:[
+    {id:'a1',t:'Presentar forma de trabajo (enviado)'}
+  ]},
+  {id:'e2',t:'Acordar',corto:'Acordar',items:[
+    {id:'b1',t:'Verificar que la propiedad esté en regla',obs:true},
+    {id:'b2',t:'Verificar que el valor coincida con precio de mercado y tasación',obs:true},
+    {id:'b3',t:'Definir quién es la referente de la operación'},
+    {id:'b4',t:'Acordar precio de venta'},
+    {id:'b5',t:'Acordar tiempo de exclusividad'},
+    {id:'b6',t:'Armar chat unificado con propietario y Pueblo Vivo'}
+  ]},
+  {id:'e3',t:'Firmar el acuerdo',corto:'Firma',items:[
+    {id:'c1',t:'Completar acuerdo de autorización de venta con exclusividad'},
+    {id:'c2',t:'Firmar el acuerdo'},
+    {id:'c3',t:'Sumar acuerdo a la carpeta de venta'},
+    {id:'c4',t:'Armar carpeta de venta completa'},
+    {id:'c5',t:'Adjuntar en el chat el link de la carpeta de venta y de la app'},
+    {id:'c6',t:'Confirmar que ambas partes revisaron la carpeta y la app'},
+    {id:'c7',t:'Guardar copia en la carpeta de Pueblo Vivo'},
+    {id:'c8',t:'Registrar fecha de inicio de exclusividad',obs:true},
+    {id:'c9',t:'Registrar fecha de finalización de exclusividad'}
+  ]},
+  {id:'e4',t:'Comercialización',corto:'Comercialización',items:[
+    {id:'d1',t:'Crear video y fotos'},
+    {id:'d2',t:'Cargar propiedad en la app'},
+    {id:'d3',t:'Cargar al catálogo de WhatsApp Business'},
+    {id:'d4',t:'Publicar anuncio en Instagram'},
+    {id:'d5',t:'Pensar posibles clientes'},
+    {id:'d6',t:'Armar lista de difusión'},
+    {id:'d7',t:'Contactar personas interesadas en propiedades similares'},
+    {id:'d8',t:'Difundir a la base de interesados'},
+    {id:'d9',t:'Colocar cartelería'},
+    {id:'d10',t:'Evaluar canales adicionales (plataformas, revista, otros)'},
+    {id:'d11',t:'Si hay acuerdo de colaboración, informar a la otra inmobiliaria y pasar info al drive compartido'}
+  ]},
+  {id:'e5',t:'Seguimiento y visitas',corto:'Seguimiento',log:true,
+    tipos:['Consulta recibida','Visita realizada','Devolución del mercado','Propuesta o acción','Revisión de estrategia']},
+  {id:'e6',t:'Propuestas, reservas y venta',corto:'Reserva y venta',items:[
+    {id:'f1',t:'Registrar propuesta recibida'},
+    {id:'f2',t:'Informar al propietario'},
+    {id:'f3',t:'Pedir reserva ad referendum'},
+    {id:'f4',t:'Definir % de la reserva (1% a 3%)',obs:true},
+    {id:'f5',t:'Completar seña (10% del valor acordado)'},
+    {id:'f6',t:'Registrar condición de retención de seña (70% propietario / 30% PV si se cae por el comprador)'},
+    {id:'f7',t:'Armar boleto'},
+    {id:'f8',t:'Coordinar con la escribanía'},
+    {id:'f9',t:'Coordinar fecha de firma'},
+    {id:'f10',t:'Recordar documentación y pagos a ambas partes'},
+    {id:'f11',t:'Acompañar la firma con documentos y regalo de PV'}
+  ]},
+  {id:'e7',t:'Finalización de la exclusividad',corto:'Cierre exclusividad',items:[
+    {id:'g1',t:'Revisar resultados (consultas, visitas, acciones)'},
+    {id:'g2',t:'Conversar con el propietario'},
+    {id:'g3',t:'Definir si se renueva la exclusividad'},
+    {id:'g4',t:'Actualizar información correspondiente'}
+  ]}
+];
 const QUIEN=['Fran','Cande','Ambas'];
 const QUIEN_BADGE={'Fran':'green','Cande':'amber','Ambas':'gray'};
 const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos','Otro'];
@@ -482,6 +581,8 @@ function flash(){ const d=document.querySelector('.conn .dot'); if(!d)return; d.
 /* ---- guardar (nube + copia local) ---- */
 function save(){
   try{ localStorage.setItem(LS_KEY,JSON.stringify(db)); }catch(e){}
+  const mb=document.getElementById('modalBg');
+  if(mb&&mb.classList.contains('open')) huboCambioLocal=true;
   flash();
   if(!cloudReady || !sb) return;
   clearTimeout(pushTimer);
@@ -931,9 +1032,12 @@ function rowProp(p){
     const extra = d===null ? '' : d<0 ? ' · vencido' : d<=AVISO_VENC ? ` · faltan ${d} días` : '';
     venc=`<span class="badge badge-${col}">Vence: ${esc(vencTxt(p.vencimiento))}${extra}</span>`;
   }
+  const act=protEtapa(p), hechos=protHechos(p), totP=protTotal();
+  const prot=`<span class="badge badge-${act?'gray':'green'}" style="cursor:pointer" title="Abrir el protocolo"
+      onclick="event.stopPropagation();openProtocolo('${p.id}')">📋 ${act?`${act.n}. ${esc(act.e.corto)}`:'Protocolo completo'} · ${hechos}/${totP}</span>`;
   return `<div class="srow" style="cursor:pointer" onclick="openPropiedad('${p.id}')">
       <div class="srow-main"><div class="srow-tit">${esc(p.titulo)}</div><div class="srow-meta">${esc(p.tipo)}${p.zona?' · '+esc(p.zona):''}</div>
-        <div class="tags" style="margin:8px 0 0">${ref}${con}${venc}</div>
+        <div class="tags" style="margin:8px 0 0">${ref}${con}${venc}${prot}</div>
         ${p.notas?`<div class="srow-notas">${esc(p.notas)}</div>`:''}</div>
       <div class="srow-right"><span class="srow-precio">${esc(p.precio||'—')}</span>
         <div class="acts"><button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delProp('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>
@@ -955,6 +1059,124 @@ function renderPropiedades(){
   if(otros.length){ html+=`<div class="grp-hdr"><span class="badge badge-gray">Otros</span><span class="grp-cnt">${otros.length}</span></div>`+otros.map(rowProp).join(''); }
   $('#propiedades').innerHTML=html;
 }
+/* ---- Protocolo ---- */
+/* Lectura sin tocar el objeto; protDe() sólo se usa al escribir. */
+function protItems(p){ return (p.protocolo&&p.protocolo.items)||{}; }
+function protVisitas(p){ return (p.protocolo&&p.protocolo.visitas)||[]; }
+function protDe(p){
+  if(!p.protocolo) p.protocolo={};
+  if(!p.protocolo.items) p.protocolo.items={};
+  if(!Array.isArray(p.protocolo.visitas)) p.protocolo.visitas=[];
+  return p.protocolo;
+}
+function protTotal(){ return PROTOCOLO.reduce((n,e)=>n+(e.items?e.items.length:0),0); }
+function protHechos(p){ const it=protItems(p); let n=0;
+  PROTOCOLO.forEach(e=>(e.items||[]).forEach(i=>{ if(it[i.id]&&it[i.id].ok)n++; })); return n; }
+/* Etapa actual = la primera que todavía tiene algo sin marcar.
+   La etapa 5 es un registro, nunca "se completa", así que no cuenta acá. */
+function protEtapa(p){ const it=protItems(p);
+  for(let k=0;k<PROTOCOLO.length;k++){ const e=PROTOCOLO[k];
+    if(!e.items) continue;
+    if(e.items.some(i=>!(it[i.id]&&it[i.id].ok))) return {e,n:k+1};
+  }
+  return null;
+}
+let protAbierta=null, protNotas=new Set();
+function openProtocolo(id){
+  const p=db.propiedades.find(x=>x.id===id); if(!p)return;
+  const act=protEtapa(p);
+  protAbierta = act?act.e.id:'e5';   // abre en la etapa donde quedó esta propiedad
+  protNotas=new Set();
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">Protocolo · ${esc(p.titulo)}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div id="protBody"></div>
+      <div class="modal-foot" style="margin-top:14px">
+        <button class="btn" onclick="closeModal()">Cerrar</button>
+        <button class="btn success" onclick="openPropiedad('${p.id}')">Ver la propiedad</button>
+      </div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+  renderProt(id);
+}
+function renderProt(id){
+  const p=db.propiedades.find(x=>x.id===id); if(!p)return;
+  const it=protItems(p);
+  const hechos=protHechos(p), tot=protTotal(), pct=Math.round(hechos/tot*100);
+  let h=`<div class="prot-top"><div class="prot-bar"><div class="prot-fill" style="width:${pct}%"></div></div>
+      <div class="prot-num">${hechos} de ${tot}</div></div>`;
+  PROTOCOLO.forEach((e,idx)=>{
+    const abierta=protAbierta===e.id;
+    if(e.log){
+      const vis=protVisitas(p).slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+      h+=`<div class="prot-et ${abierta?'open':''}" onclick="protToggleEt('${e.id}','${id}')">
+          <span class="prot-et-n">${idx+1}</span><span class="prot-et-t">${e.t}</span>
+          <span class="prot-et-c">${vis.length}</span><span class="prot-chev">${abierta?'▾':'▸'}</span></div>`;
+      if(abierta){
+        h+=`<div class="prot-items">
+            <div class="prot-add">
+              <select id="v-tipo">${opt(e.tipos,e.tipos[0])}</select>
+              <input id="v-fec" type="date" value="${todayISO()}">
+              <input id="v-txt" class="txt" placeholder="Qué pasó, quién, qué devolución…">
+              <button class="btn sm success" onclick="addVisita('${id}')">Agregar</button>
+            </div>`
+          + (vis.length ? vis.map(v=>`<div class="prot-log">
+              <div class="prot-log-h"><b>${esc(v.tipo)}</b><span class="f">${fechaLarga(v.fecha)}</span>
+                <button class="iconbtn del" title="Eliminar" onclick="delVisita('${id}','${v.id}')">✕</button></div>
+              ${v.txt?`<div class="prot-log-t">${esc(v.txt)}</div>`:''}</div>`).join('')
+            : `<div class="empty" style="padding:14px">Todavía no registraste nada acá.</div>`)
+          + `</div>`;
+      }
+      return;
+    }
+    const n=e.items.filter(i=>it[i.id]&&it[i.id].ok).length, tot2=e.items.length;
+    h+=`<div class="prot-et ${abierta?'open':''} ${n===tot2?'done':''}" onclick="protToggleEt('${e.id}','${id}')">
+        <span class="prot-et-n">${idx+1}</span><span class="prot-et-t">${e.t}</span>
+        <span class="prot-et-c">${n}/${tot2}</span><span class="prot-chev">${abierta?'▾':'▸'}</span></div>`;
+    if(abierta){
+      h+=`<div class="prot-items">`+e.items.map(i=>{
+        const st=it[i.id]||{}, ok=!!st.ok;
+        const verNota = i.obs || st.obs || protNotas.has(i.id);
+        return `<div class="prot-it ${ok?'ok':''}">
+            <label class="prot-chk"><input type="checkbox" ${ok?'checked':''} onchange="protToggle('${id}','${i.id}')"><span>${esc(i.t)}</span></label>
+            ${ok&&st.fecha?`<div class="prot-fecha">✓ ${fechaLarga(st.fecha)}</div>`:''}
+            ${verNota
+              ? `<input class="prot-obs" value="${esc(st.obs||'')}" placeholder="Observación…" onchange="protObs('${id}','${i.id}',this.value)">`
+              : `<span class="prot-nota-add" onclick="protAbrirNota('${i.id}','${id}')">+ nota</span>`}
+          </div>`;
+      }).join('')+`</div>`;
+    }
+  });
+  $('#protBody').innerHTML=h;
+}
+function protToggleEt(eid,pid){ protAbierta = protAbierta===eid?null:eid; renderProt(pid); }
+function protToggle(pid,iid){
+  const p=db.propiedades.find(x=>x.id===pid); if(!p)return;
+  const it=protDe(p).items, st=it[iid]||{};
+  st.ok=!st.ok; st.fecha=st.ok?todayISO():'';
+  if(!st.ok&&!st.obs) delete it[iid]; else it[iid]=st;
+  save(); renderProt(pid); renderPropiedades();
+}
+function protObs(pid,iid,v){
+  const p=db.propiedades.find(x=>x.id===pid); if(!p)return;
+  const it=protDe(p).items, st=it[iid]||{};
+  st.obs=(v||'').trim();
+  if(!st.ok&&!st.obs) delete it[iid]; else it[iid]=st;
+  save();
+}
+function protAbrirNota(iid,pid){ protNotas.add(iid); renderProt(pid); }
+function addVisita(pid){
+  const p=db.propiedades.find(x=>x.id===pid); if(!p)return;
+  const txt=$('#v-txt').value.trim(); if(!txt){ alert('Escribí qué pasó'); return; }
+  protDe(p).visitas.push({id:uid(),tipo:$('#v-tipo').value,fecha:$('#v-fec').value||todayISO(),txt});
+  save(); renderProt(pid); renderPropiedades();
+}
+function delVisita(pid,vid){
+  const p=db.propiedades.find(x=>x.id===pid); if(!p)return;
+  protDe(p).visitas=protDe(p).visitas.filter(v=>v.id!==vid);
+  save(); renderProt(pid); renderPropiedades();
+}
+
 function delProp(id){ if(!confirm('¿Eliminar esta propiedad?'))return; db.propiedades=db.propiedades.filter(p=>p.id!==id); save(); renderPropiedades(); renderNav(); renderResumen(); renderAgenda(); }
 
 /* ============ Cierres ============ */
@@ -1146,7 +1368,18 @@ function renderContactos(){
 function delContacto(id){ if(!confirm('¿Eliminar contacto?'))return; db.contactos=db.contactos.filter(c=>c.id!==id); save(); renderContactos(); }
 
 /* ============ Modales ============ */
-function closeModal(){ $('#modalBg').classList.remove('open'); $('#modal').innerHTML=''; if(pendingRemote){ db=pendingRemote; lastJSON=JSON.stringify(db); pendingRemote=null; normalizar(); renderAll(); } }
+function closeModal(){
+  $('#modalBg').classList.remove('open'); $('#modal').innerHTML='';
+  if(pendingRemote){
+    /* Llegó un cambio de la otra socia mientras teníamos el modal abierto.
+       Si nosotras guardamos algo en ese rato, lo nuestro ya se subió DESPUÉS
+       que ese cambio, así que pisarlo con la copia vieja borraría lo recién
+       hecho. En ese caso la descartamos. */
+    if(huboCambioLocal){ pendingRemote=null; }
+    else { db=pendingRemote; lastJSON=JSON.stringify(db); pendingRemote=null; normalizar(); renderAll(); }
+  }
+  huboCambioLocal=false;
+}
 $('#modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg')closeModal(); });
 function opt(arr,sel){ return arr.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join(''); }
 
