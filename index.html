@@ -71,6 +71,10 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .subnav-btn:hover{border-color:var(--border2)}
 .subnav-btn.active{background:var(--green);color:#fff;border-color:var(--green)}
 .subnav-btn .c{font-family:var(--mono);font-size:10px;opacity:.65;margin-left:4px}
+.subnav-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--ink3);align-self:center;margin-right:5px;flex:0 0 auto}
+.subnav-clr{font-size:11px;color:var(--ink3);align-self:center;margin-left:6px;text-decoration:underline;cursor:pointer}
+.subnav-clr:hover{color:var(--red)}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap}
@@ -376,6 +380,8 @@ input,select,textarea{font-size:15.5px}
       <button class="btn primary" onclick="openPropiedad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nueva</button>
     </div>
     <div class="subnav" id="fil-prop"></div>
+    <div class="subnav" id="fil-prop-ref"></div>
+    <div class="subnav" id="fil-prop-con"></div>
     <div class="simple" id="propiedades"></div>
   </div>
 
@@ -655,7 +661,7 @@ function cuando(d){
 }
 
 const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
-let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos';
+let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos';
 
 function renderNav(){
   $('#nav').innerHTML=TABS.map(([k,n])=>{
@@ -883,12 +889,35 @@ function vencimientosProp(){
     return fecha?{prop:p,fecha,dias:diasHasta(fecha)}:null;
   }).filter(Boolean);
 }
+/* Los tres filtros se combinan. Para que los números de cada botón sean
+   útiles, se cuentan sobre la lista ya filtrada por los OTROS dos. */
+const refDe=p=>p.referente||'Sin asignar';
+const conDe=p=>p.contrato||'Sin firmar';
+function propsFiltradas(excepto){
+  return db.propiedades.filter(p=>
+    (excepto==='tipo' || filtroProp==='Todos' || p.tipo===filtroProp) &&
+    (excepto==='ref'  || filtroRef==='Todos'  || refDe(p)===filtroRef) &&
+    (excepto==='con'  || filtroCon==='Todos'  || conDe(p)===filtroCon));
+}
+function filaFiltro(el,label,ops,activo,fn,valorDe,excepto,extra){
+  const base=propsFiltradas(excepto);
+  const btns=ops.map(o=>{
+    const n = o==='Todos'||o==='Todas' ? base.length : base.filter(p=>valorDe(p)===o).length;
+    return `<button class="subnav-btn ${activo===o?'active':''}" onclick="${fn}('${o}')">${o}<span class="c">${n}</span></button>`;
+  }).join('');
+  $(el).innerHTML=`<span class="subnav-lbl">${label}</span>${btns}${extra||''}`;
+}
+function hayFiltros(){ return filtroProp!=='Todos'||filtroRef!=='Todos'||filtroCon!=='Todos'; }
+function limpiarFiltrosProp(){ filtroProp='Todos'; filtroRef='Todos'; filtroCon='Todos'; renderFilProp(); renderPropiedades(); }
 function renderFilProp(){
-  const tipos=['Todos','Lote','Casa','Alquiler','Inversión'];
-  const cont={}; tipos.forEach(t=>cont[t]=t==='Todos'?db.propiedades.length:db.propiedades.filter(p=>p.tipo===t).length);
-  $('#fil-prop').innerHTML=tipos.map(t=>`<button class="subnav-btn ${filtroProp===t?'active':''}" onclick="setProp('${t}')">${t}<span class="c">${cont[t]||0}</span></button>`).join('');
+  filaFiltro('#fil-prop','Tipo',['Todos','Lote','Casa','Alquiler','Inversión'],filtroProp,'setProp',p=>p.tipo,'tipo');
+  filaFiltro('#fil-prop-ref','Referente',['Todos','Fran','Cande','Sin asignar'],filtroRef,'setPropRef',refDe,'ref');
+  filaFiltro('#fil-prop-con','Contrato',['Todos','Firmado','Sin firmar'],filtroCon,'setPropCon',conDe,'con',
+    hayFiltros()?`<span class="subnav-clr" onclick="limpiarFiltrosProp()">limpiar filtros</span>`:'');
 }
 function setProp(t){ filtroProp=t; renderFilProp(); renderPropiedades(); }
+function setPropRef(t){ filtroRef=t; renderFilProp(); renderPropiedades(); }
+function setPropCon(t){ filtroCon=t; renderFilProp(); renderPropiedades(); }
 function rowProp(p){
   const contrato=p.contrato||'Sin firmar';
   const ref=p.referente
@@ -912,9 +941,8 @@ function rowProp(p){
     </div>`;
 }
 function renderPropiedades(){
-  let list=db.propiedades.slice();
-  if(filtroProp!=='Todos') list=list.filter(p=>p.tipo===filtroProp);
-  if(!list.length){ $('#propiedades').innerHTML=`<div class="empty">No hay propiedades en este filtro.</div>`; return; }
+  const list=propsFiltradas();
+  if(!list.length){ $('#propiedades').innerHTML=`<div class="empty">No hay propiedades con estos filtros.${hayFiltros()?` <a href="javascript:void(0)" onclick="limpiarFiltrosProp()">Limpiar filtros</a>`:''}</div>`; return; }
   let html='';
   PROP_ESTADOS.forEach(est=>{
     const g=list.filter(p=>p.estado===est);
