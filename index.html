@@ -103,6 +103,10 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .prot-nota-add{display:inline-block;margin:4px 0 0 24px;font-size:11px;color:var(--ink3);
   cursor:pointer;text-decoration:underline}
 .prot-nota-add:hover{color:var(--green)}
+.prot-it.auto{border-left-style:dashed}
+.prot-it.auto .prot-chk{cursor:default}
+.prot-auto{font-size:11px;color:var(--ink3);margin:3px 0 0 24px;line-height:1.5}
+.prot-ir{color:var(--green);cursor:pointer;text-decoration:underline;white-space:nowrap}
 .prot-add{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .prot-add select,.prot-add input{padding:6px 9px;border:1px solid var(--border2);border-radius:6px;
   background:var(--bg);color:var(--ink);font-size:12.5px}
@@ -508,21 +512,24 @@ const PROTOCOLO=[
   {id:'e2',t:'Acordar',corto:'Acordar',items:[
     {id:'b1',t:'Verificar que la propiedad esté en regla',obs:true},
     {id:'b2',t:'Verificar que el valor coincida con precio de mercado y tasación',obs:true},
-    {id:'b3',t:'Definir quién es la referente de la operación'},
-    {id:'b4',t:'Acordar precio de venta'},
+    {id:'b3',t:'Definir quién es la referente de la operación',
+      auto:p=>!!p.referente, autoTxt:'ya cargaste la referente en la ficha'},
+    {id:'b4',t:'Acordar precio de venta',
+      auto:p=>!!String(p.precio||'').trim(), autoTxt:'ya cargaste el precio en la ficha'},
     {id:'b5',t:'Acordar tiempo de exclusividad'},
     {id:'b6',t:'Armar chat unificado con propietario y Pueblo Vivo'}
   ]},
   {id:'e3',t:'Firmar el acuerdo',corto:'Firma',items:[
     {id:'c1',t:'Completar acuerdo de autorización de venta con exclusividad'},
-    {id:'c2',t:'Firmar el acuerdo'},
-    {id:'c3',t:'Sumar acuerdo a la carpeta de venta'},
-    {id:'c4',t:'Armar carpeta de venta completa'},
+    {id:'c2',t:'Firmar el acuerdo',
+      auto:p=>p.contrato==='Firmado', autoTxt:'el contrato está marcado como Firmado en la ficha'},
+    {id:'c4',t:'Armar carpeta de venta completa, con el acuerdo adentro'},
     {id:'c5',t:'Adjuntar en el chat el link de la carpeta de venta y de la app'},
     {id:'c6',t:'Confirmar que ambas partes revisaron la carpeta y la app'},
     {id:'c7',t:'Guardar copia en la carpeta de Pueblo Vivo'},
     {id:'c8',t:'Registrar fecha de inicio de exclusividad',obs:true},
-    {id:'c9',t:'Registrar fecha de finalización de exclusividad'}
+    {id:'c9',t:'Registrar fecha de finalización de exclusividad',
+      auto:p=>!!p.vencimiento, autoTxt:'ya cargaste el vencimiento en la ficha'}
   ]},
   {id:'e4',t:'Comercialización',corto:'Comercialización',items:[
     {id:'d1',t:'Crear video y fotos'},
@@ -540,8 +547,7 @@ const PROTOCOLO=[
   {id:'e5',t:'Seguimiento y visitas',corto:'Seguimiento',log:true,
     tipos:['Consulta recibida','Visita realizada','Devolución del mercado','Propuesta o acción','Revisión de estrategia']},
   {id:'e6',t:'Propuestas, reservas y venta',corto:'Reserva y venta',items:[
-    {id:'f1',t:'Registrar propuesta recibida'},
-    {id:'f2',t:'Informar al propietario'},
+    {id:'f1',t:'Registrar propuesta recibida e informar al propietario'},
     {id:'f3',t:'Pedir reserva ad referendum'},
     {id:'f4',t:'Definir % de la reserva (1% a 3%)',obs:true},
     {id:'f5',t:'Completar seña (10% del valor acordado)'},
@@ -1070,14 +1076,16 @@ function protDe(p){
   return p.protocolo;
 }
 function protTotal(){ return PROTOCOLO.reduce((n,e)=>n+(e.items?e.items.length:0),0); }
-function protHechos(p){ const it=protItems(p); let n=0;
-  PROTOCOLO.forEach(e=>(e.items||[]).forEach(i=>{ if(it[i.id]&&it[i.id].ok)n++; })); return n; }
+/* Las tareas con .auto no se marcan a mano: salen de un campo de la ficha. */
+function protOk(p,i){ return i.auto ? !!i.auto(p) : !!(protItems(p)[i.id]||{}).ok; }
+function protHechos(p){ let n=0;
+  PROTOCOLO.forEach(e=>(e.items||[]).forEach(i=>{ if(protOk(p,i))n++; })); return n; }
 /* Etapa actual = la primera que todavía tiene algo sin marcar.
    La etapa 5 es un registro, nunca "se completa", así que no cuenta acá. */
-function protEtapa(p){ const it=protItems(p);
+function protEtapa(p){
   for(let k=0;k<PROTOCOLO.length;k++){ const e=PROTOCOLO[k];
     if(!e.items) continue;
-    if(e.items.some(i=>!(it[i.id]&&it[i.id].ok))) return {e,n:k+1};
+    if(e.items.some(i=>!protOk(p,i))) return {e,n:k+1};
   }
   return null;
 }
@@ -1129,12 +1137,20 @@ function renderProt(id){
       }
       return;
     }
-    const n=e.items.filter(i=>it[i.id]&&it[i.id].ok).length, tot2=e.items.length;
+    const n=e.items.filter(i=>protOk(p,i)).length, tot2=e.items.length;
     h+=`<div class="prot-et ${abierta?'open':''} ${n===tot2?'done':''}" onclick="protToggleEt('${e.id}','${id}')">
         <span class="prot-et-n">${idx+1}</span><span class="prot-et-t">${e.t}</span>
         <span class="prot-et-c">${n}/${tot2}</span><span class="prot-chev">${abierta?'▾':'▸'}</span></div>`;
     if(abierta){
       h+=`<div class="prot-items">`+e.items.map(i=>{
+        if(i.auto){
+          const ok=protOk(p,i);
+          return `<div class="prot-it auto ${ok?'ok':''}">
+              <label class="prot-chk"><input type="checkbox" ${ok?'checked':''} disabled><span>${esc(i.t)}</span></label>
+              <div class="prot-auto">${ok?'✓ Listo: ':'Se marca sola cuando '}${esc(i.autoTxt)}.
+                <span class="prot-ir" onclick="openPropiedad('${id}')">${ok?'ver la ficha':'ir a la ficha'}</span></div>
+            </div>`;
+        }
         const st=it[i.id]||{}, ok=!!st.ok;
         const verNota = i.obs || st.obs || protNotas.has(i.id);
         return `<div class="prot-it ${ok?'ok':''}">
