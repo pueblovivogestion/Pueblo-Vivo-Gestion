@@ -449,6 +449,7 @@ const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
 const COBRA_BADGE={'Fran':'green','Cande':'amber','Mitad':'gray'};
 const MOV_TIPOS=['Ingreso','Gasto'];
+const REF_BADGE={'Fran':'green','Cande':'amber'};
 const QUIEN=['Fran','Cande','Ambas'];
 const QUIEN_BADGE={'Fran':'green','Cande':'amber','Ambas':'gray'};
 const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos','Otro'];
@@ -858,6 +859,7 @@ function rowProp(p){
   return `<div class="srow" style="cursor:pointer" onclick="openPropiedad('${p.id}')">
       <div class="srow-main"><div class="srow-tit">${esc(p.titulo)}</div><div class="srow-meta">${esc(p.tipo)}${p.zona?' · '+esc(p.zona):''}</div>${p.notas?`<div class="srow-notas">${esc(p.notas)}</div>`:''}</div>
       <div class="srow-right"><span class="srow-precio">${esc(p.precio||'—')}</span>
+        ${p.referente?`<span class="badge badge-${REF_BADGE[p.referente]||'gray'}">Ref: ${esc(p.referente)}</span>`:`<span class="badge badge-gray" style="opacity:.6">Sin referente</span>`}
         <div class="acts"><button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delProp('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>
       </div>
     </div>`;
@@ -1183,6 +1185,7 @@ function syncEventoNota(ev){
 
 function openPropiedad(id){
   const p=id?db.propiedades.find(x=>x.id===id):null;
+  const ref=p?(p.referente||''):'';
   $('#modal').innerHTML=`
     <div class="modal-hdr"><div class="modal-title">${p?'Editar propiedad':'Nueva propiedad'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
@@ -1191,14 +1194,19 @@ function openPropiedad(id){
         <div class="field"><label>Estado</label><select id="p-estado">${opt(PROP_ESTADOS,p?p.estado:'Disponible')}</select></div></div>
       <div class="g2"><div class="field"><label>Zona</label><input id="p-zona" value="${p?esc(p.zona):''}"></div>
         <div class="field"><label>Precio</label><input id="p-precio" value="${p?esc(p.precio):''}" placeholder="Ej: USD 18.000"></div></div>
-      <div class="field"><label>Notas</label><textarea id="p-notas">${p?esc(p.notas):''}</textarea></div>
+      <div class="field"><label>Referente</label><select id="p-ref">
+          <option value="" ${ref?'':'selected'}>Sin asignar</option>
+          <option value="Fran" ${ref==='Fran'?'selected':''}>Fran</option>
+          <option value="Cande" ${ref==='Cande'?'selected':''}>Cande</option>
+        </select><div class="hint">Quién de las dos lleva esta propiedad.</div></div>
+      <div class="field"><label>Notas</label><textarea id="p-notas" style="min-height:130px" placeholder="Lo que quieras anotar de esta propiedad: cómo está, qué pidió el dueño, quién la mostró, qué falta…">${p?esc(p.notas):''}</textarea></div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePropiedad('${p?p.id:''}')">Guardar</button></div>
     </div>`;
   $('#modalBg').classList.add('open');
 }
 function savePropiedad(id){
   const t=$('#p-tit').value.trim(); if(!t){alert('Poné un título');return;}
-  const o={titulo:t,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),notas:$('#p-notas').value.trim()};
+  const o={titulo:t,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,notas:$('#p-notas').value.trim()};
   if(id) Object.assign(db.propiedades.find(x=>x.id===id),o); else {o.id=uid();db.propiedades.unshift(o);}
   save(); closeModal(); renderPropiedades(); renderFilProp(); renderNav();
 }
