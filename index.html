@@ -71,6 +71,12 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .subnav-btn:hover{border-color:var(--border2)}
 .subnav-btn.active{background:var(--green);color:#fff;border-color:var(--green)}
 .subnav-btn .c{font-family:var(--mono);font-size:10px;opacity:.65;margin-left:4px}
+.optabs{display:flex;gap:2px;margin-bottom:15px;border-bottom:1px solid var(--border)}
+.optab{flex:1;padding:11px 10px;border:none;background:none;cursor:pointer;color:var(--ink3);
+  font-family:var(--serif);font-size:15px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.optab:hover{color:var(--ink2)}
+.optab.active{color:var(--green);border-bottom-color:var(--green)}
+.optab .c{font-family:var(--mono);font-size:11px;opacity:.7;margin-left:6px}
 .subnav-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
   color:var(--ink3);align-self:center;margin-right:5px;flex:0 0 auto}
 .subnav-clr{font-size:11px;color:var(--ink3);align-self:center;margin-left:6px;text-decoration:underline;cursor:pointer}
@@ -420,6 +426,7 @@ input,select,textarea{font-size:15.5px}
       <div><h2>Propiedades</h2><div class="sub">Tu cartera de lotes y casas</div></div>
       <button class="btn primary" onclick="openPropiedad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nueva</button>
     </div>
+    <div class="optabs" id="op-prop"></div>
     <div class="subnav" id="fil-prop"></div>
     <div class="subnav" id="fil-prop-ref"></div>
     <div class="subnav" id="fil-prop-con"></div>
@@ -579,6 +586,9 @@ function applyMigrations(){
   const hoy=new Date().toISOString().slice(0,10);
   db.interesados.forEach(i=>{ if(i.notas && i.notas.trim()){ i.bitacora=i.bitacora||[]; i.bitacora.push({fecha:i.alta||hoy,tipo:'Nota',txt:i.notas.trim()}); i.notas=''; } });
   db.interesados.forEach(i=>syncContacto(i));
+  /* Antes "Alquiler" era un valor del campo Tipo, mezclado con Lote y Casa.
+     Ahora la operación es un campo aparte; el Tipo queda para qué es. */
+  db.propiedades.forEach(p=>{ if(!p.operacion) p.operacion = p.tipo==='Alquiler' ? 'Alquiler' : 'Venta'; });
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function setConn(txt,err){ const t=document.getElementById('conn-txt'); if(t)t.textContent=txt; const d=document.querySelector('.conn .dot'); if(d)d.style.background=err?'#f87171':'#52b788'; }
@@ -768,7 +778,7 @@ function cuando(d){
 }
 
 const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
-let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos';
+let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta';
 
 function renderNav(){
   $('#nav').innerHTML=TABS.map(([k,n])=>{
@@ -1000,8 +1010,10 @@ function vencimientosProp(){
    útiles, se cuentan sobre la lista ya filtrada por los OTROS dos. */
 const refDe=p=>p.referente||'Sin asignar';
 const conDe=p=>p.contrato||'Sin firmar';
+const opDe=p=>p.operacion||(p.tipo==='Alquiler'?'Alquiler':'Venta');
+function propsDeOp(){ return db.propiedades.filter(p=>opDe(p)===opProp); }
 function propsFiltradas(excepto){
-  return db.propiedades.filter(p=>
+  return propsDeOp().filter(p=>
     (excepto==='tipo' || filtroProp==='Todos' || p.tipo===filtroProp) &&
     (excepto==='ref'  || filtroRef==='Todos'  || refDe(p)===filtroRef) &&
     (excepto==='con'  || filtroCon==='Todos'  || conDe(p)===filtroCon));
@@ -1017,11 +1029,21 @@ function filaFiltro(el,label,ops,activo,fn,valorDe,excepto,extra){
 function hayFiltros(){ return filtroProp!=='Todos'||filtroRef!=='Todos'||filtroCon!=='Todos'; }
 function limpiarFiltrosProp(){ filtroProp='Todos'; filtroRef='Todos'; filtroCon='Todos'; renderFilProp(); renderPropiedades(); }
 function renderFilProp(){
-  filaFiltro('#fil-prop','Tipo',['Todos','Lote','Casa','Alquiler','Inversión'],filtroProp,'setProp',p=>p.tipo,'tipo');
+  // solapas Venta / Alquiler
+  $('#op-prop').innerHTML=['Venta','Alquiler'].map(o=>{
+    const n=db.propiedades.filter(p=>opDe(p)===o).length;
+    return `<button class="optab ${opProp===o?'active':''}" onclick="setOpProp('${o}')">${o}<span class="c">${n}</span></button>`;
+  }).join('');
+  /* El filtro de Tipo se arma con los tipos que realmente hay en la solapa
+     abierta; si hay uno solo no aporta nada y se esconde. */
+  const tipos=[...new Set(propsDeOp().map(p=>p.tipo).filter(Boolean))].sort();
+  if(tipos.length<2){ $('#fil-prop').innerHTML=''; if(filtroProp!=='Todos') filtroProp='Todos'; }
+  else filaFiltro('#fil-prop','Tipo',['Todos',...tipos],filtroProp,'setProp',p=>p.tipo,'tipo');
   filaFiltro('#fil-prop-ref','Referente',['Todos','Fran','Cande','Sin asignar'],filtroRef,'setPropRef',refDe,'ref');
   filaFiltro('#fil-prop-con','Contrato',['Todos','Firmado','Sin firmar'],filtroCon,'setPropCon',conDe,'con',
     hayFiltros()?`<span class="subnav-clr" onclick="limpiarFiltrosProp()">limpiar filtros</span>`:'');
 }
+function setOpProp(o){ opProp=o; filtroProp='Todos'; filtroRef='Todos'; filtroCon='Todos'; renderFilProp(); renderPropiedades(); }
 function setProp(t){ filtroProp=t; renderFilProp(); renderPropiedades(); }
 function setPropRef(t){ filtroRef=t; renderFilProp(); renderPropiedades(); }
 function setPropCon(t){ filtroCon=t; renderFilProp(); renderPropiedades(); }
@@ -1514,8 +1536,10 @@ function openPropiedad(id){
     <div class="modal-hdr"><div class="modal-title">${p?'Editar propiedad':'Nueva propiedad'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="field"><label>Título</label><input id="p-tit" value="${p?esc(p.titulo):''}" placeholder="Ej: Lote 14 — sector arboleda"></div>
-      <div class="g2"><div class="field"><label>Tipo</label><select id="p-tipo">${opt(BUSCA,p?p.tipo:'Lote')}</select></div>
+      <div class="g2"><div class="field"><label>Operación</label><select id="p-op">${opt(['Venta','Alquiler'],p?opDe(p):opProp)}</select>
+          <div class="hint">Define en qué solapa aparece.</div></div>
         <div class="field"><label>Estado</label><select id="p-estado">${opt(PROP_ESTADOS,p?p.estado:'Disponible')}</select></div></div>
+      <div class="field"><label>Tipo</label><select id="p-tipo">${opt(BUSCA,p?p.tipo:'Lote')}</select></div>
       <div class="g2"><div class="field"><label>Zona</label><input id="p-zona" value="${p?esc(p.zona):''}"></div>
         <div class="field"><label>Precio</label><input id="p-precio" value="${p?esc(p.precio):''}" placeholder="Ej: USD 18.000"></div></div>
       <div class="field"><label>Referente</label><select id="p-ref">
@@ -1533,8 +1557,9 @@ function openPropiedad(id){
 }
 function savePropiedad(id){
   const t=$('#p-tit').value.trim(); if(!t){alert('Poné un título');return;}
-  const o={titulo:t,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,contrato:$('#p-contrato').value,vencimiento:$('#p-venc').value,notas:$('#p-notas').value.trim()};
+  const o={titulo:t,operacion:$('#p-op').value,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,contrato:$('#p-contrato').value,vencimiento:$('#p-venc').value,notas:$('#p-notas').value.trim()};
   if(id) Object.assign(db.propiedades.find(x=>x.id===id),o); else {o.id=uid();db.propiedades.unshift(o);}
+  if(o.operacion!==opProp) setOpProp(o.operacion);   // si cambió de operación, mostramos la solapa donde quedó
   save(); closeModal(); renderPropiedades(); renderFilProp(); renderNav(); renderResumen(); renderAgenda();
 }
 
