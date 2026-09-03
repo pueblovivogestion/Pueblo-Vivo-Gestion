@@ -499,6 +499,9 @@ const PROP_ESTADOS=['Disponible','Reservada','Pausada','Alquilada','Vendida'];
 const PROP_BADGE={'Disponible':'green','Reservada':'amber','Pausada':'gray','Alquilada':'green','Vendida':'gray'};
 const CANALES=['Instagram','Facebook','WhatsApp','Referido','Cartel','Web / Portal','Feria o evento','Otro'];
 const BUSCA=['Lote','Casa','Alquiler','Inversión','Otro'];
+/* Tipos de una propiedad: qué es. Que sea alquiler o venta va aparte,
+   en el campo Operación, así una casa en alquiler puede decir que es casa. */
+const PROP_TIPOS=['Casa','Lote','Inversión','Otro'];
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -589,6 +592,10 @@ function applyMigrations(){
   /* Antes "Alquiler" era un valor del campo Tipo, mezclado con Lote y Casa.
      Ahora la operación es un campo aparte; el Tipo queda para qué es. */
   db.propiedades.forEach(p=>{ if(!p.operacion) p.operacion = p.tipo==='Alquiler' ? 'Alquiler' : 'Venta'; });
+  /* Los 20 alquileres arrastraban 'Alquiler' como Tipo, que ya no es un tipo.
+     Son todas casas (confirmado). Va DESPUÉS de la línea de arriba, que
+     todavía necesita leer el tipo viejo. */
+  db.propiedades.forEach(p=>{ if(p.tipo==='Alquiler') p.tipo='Casa'; });
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function setConn(txt,err){ const t=document.getElementById('conn-txt'); if(t)t.textContent=txt; const d=document.querySelector('.conn .dot'); if(d)d.style.background=err?'#f87171':'#52b788'; }
@@ -1539,7 +1546,7 @@ function openPropiedad(id){
       <div class="g2"><div class="field"><label>Operación</label><select id="p-op">${opt(['Venta','Alquiler'],p?opDe(p):opProp)}</select>
           <div class="hint">Define en qué solapa aparece.</div></div>
         <div class="field"><label>Estado</label><select id="p-estado">${opt(PROP_ESTADOS,p?p.estado:'Disponible')}</select></div></div>
-      <div class="field"><label>Tipo</label><select id="p-tipo">${opt(BUSCA,p?p.tipo:'Lote')}</select></div>
+      <div class="field"><label>Tipo</label><select id="p-tipo">${opt(PROP_TIPOS,p?p.tipo:'Lote')}</select></div>
       <div class="g2"><div class="field"><label>Zona</label><input id="p-zona" value="${p?esc(p.zona):''}"></div>
         <div class="field"><label>Precio</label><input id="p-precio" value="${p?esc(p.precio):''}" placeholder="Ej: USD 18.000"></div></div>
       <div class="field"><label>Referente</label><select id="p-ref">
