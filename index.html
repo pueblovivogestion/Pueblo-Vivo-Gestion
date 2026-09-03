@@ -109,6 +109,9 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .prot-nota-add{display:inline-block;margin:4px 0 0 24px;font-size:11px;color:var(--ink3);
   cursor:pointer;text-decoration:underline}
 .prot-nota-add:hover{color:var(--green)}
+.icard-obs{font-size:12px;color:var(--ink2);line-height:1.55;margin-top:9px;white-space:pre-wrap;
+  background:var(--bg2);border-radius:7px;padding:8px 11px}
+@media(max-width:640px){ .icard-obs{font-size:13.5px} }
 .prot-it.auto{border-left-style:dashed}
 .prot-it.auto .prot-chk{cursor:default}
 .prot-auto{font-size:11px;color:var(--ink3);margin:3px 0 0 24px;line-height:1.5}
@@ -939,6 +942,7 @@ function cardInteresado(i){
   let prox='';
   if(i.proxima&&i.proxima.txt){ const d=diasHasta(i.proxima.fecha), v=(d!==null&&d<0);
     prox=`<div class="prox ${v?'vencida':''}"><span class="f">${i.proxima.fecha?fechaLarga(i.proxima.fecha):'—'}</span>${esc(i.proxima.txt)}</div>`; }
+  const obs=i.observaciones?`<div class="icard-obs">${esc(i.observaciones)}</div>`:'';
   const ultima=(i.bitacora&&i.bitacora.length)?i.bitacora[i.bitacora.length-1]:null;
   const notaPrev=ultima?`<div class="icard-notas"><span class="ht" style="display:inline-block;font-size:9px;background:var(--bg2);color:var(--ink3);padding:1px 6px;border-radius:6px;margin-right:5px">${esc(ultima.tipo)}</span>${esc(ultima.txt)}</div>`:'';
   const hist=(i.bitacora&&i.bitacora.length)?`<details class="hist"><summary onclick="event.stopPropagation()">Historial (${i.bitacora.length})</summary><div class="hist-list">${i.bitacora.slice().reverse().map(h=>`<div class="hist-item"><span class="hf">${fechaLarga(h.fecha)}</span><span class="ht">${esc(h.tipo)}</span>${esc(h.txt)}</div>`).join('')}</div></details>`:'';
@@ -954,6 +958,7 @@ function cardInteresado(i){
       ${i.mail?`<span class="tag">✉️ ${esc(i.mail)}</span>`:''}
     </div>
     ${prox}
+    ${obs}
     ${notaPrev}
     ${hist}
     <div class="icard-quick" onclick="event.stopPropagation()">
@@ -1448,6 +1453,8 @@ function delTarea(id){ db.tareas=db.tareas.filter(t=>t.id!==id); save(); renderN
 /* ============ Contactos ============ */
 let contactoQuery='';
 function setContactoQuery(v){ contactoQuery=v; renderContactos(); }
+const ICO_LAPIZ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const ICO_TACHO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
 function renderContactos(){
   let orden=db.contactos.slice().sort((a,b)=>(a.refInt?1:0)-(b.refInt?1:0));
   const norm=s=>(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
@@ -1463,8 +1470,10 @@ function renderContactos(){
     return `<div class="srow" ${open}>
       <div class="srow-main"><div class="srow-tit">${esc(c.nombre)} ${linked?'<span class="badge badge-green" style="vertical-align:middle">🔗 Interesado</span>':''}</div><div class="srow-meta">${meta}</div>${c.notas?`<div class="srow-notas">${esc(c.notas)}</div>`:''}</div>
       <div class="srow-right">${c.tel?`<a class="btn success sm" href="${waLink(c.tel)}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
-        <div class="acts">${linked?'':`<button class="iconbtn" onclick="event.stopPropagation();openContacto('${c.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`}
-        <button class="iconbtn del" onclick="event.stopPropagation();${linked?`openInteresado('${c.refInt}')`:`delContacto('${c.id}')`}" title="${linked?'Se edita desde el interesado':'Eliminar'}">${linked?'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h9\"/><path d=\"M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z\"/></svg>':'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14\"/></svg>'}</button></div>
+        <div class="acts">
+          <button class="iconbtn" onclick="event.stopPropagation();${linked?`openInteresado('${c.refInt}')`:`openContacto('${c.id}')`}" title="${linked?'Editar (se abre la tarjeta del interesado)':'Editar'}">${ICO_LAPIZ}</button>
+          ${linked?'':`<button class="iconbtn del" onclick="event.stopPropagation();delContacto('${c.id}')" title="Eliminar">${ICO_TACHO}</button>`}
+        </div>
       </div>
     </div>`;}).join(''):`<div class="empty">${q?'No se encontraron contactos.':'No hay contactos cargados.'}</div>`;
 }
@@ -1498,6 +1507,8 @@ function openInteresado(id,prefFecha){
         <div class="field"><label>Qué busca</label><select id="f-busca">${opt(BUSCA,i?i.busca:'Lote')}</select></div></div>
       <div class="g2"><div class="field"><label>Mail</label><input id="f-mail" type="email" value="${i?esc(i.mail||''):''}" placeholder="nombre@gmail.com"></div>
         <div class="field"><label>Referente</label><select id="f-refint">${opt(REFS,i?(i.referente||'Sin asignar'):'Sin asignar')}</select><div class="hint">Quién de las dos lo está atendiendo.</div></div></div>
+      <div class="field"><label>Observaciones</label><textarea id="f-obs" style="min-height:110px" placeholder="Lo que quieras anotar de esta persona: qué le interesa, cómo prefiere que la contacten, con quién viene, lo que sea…">${i?esc(i.observaciones||''):''}</textarea>
+        <div class="hint">Queda acá y lo podés reescribir cuando quieras. Si en cambio querés dejar constancia de algo con fecha, usá «Agregar nota» más abajo.</div></div>
       <div class="g2"><div class="field"><label>Zona de interés</label><input id="f-zona" value="${i?esc(i.zona):''}"></div>
         <div class="field"><label>Presupuesto que maneja</label><input id="f-presu" value="${i?esc(i.presupuesto):''}" placeholder="Ej: USD 20.000"></div></div>
       <div class="g2"><div class="field"><label>Canal (por dónde llegó)</label><select id="f-canal">${opt(CANALES,i?i.canal:'Instagram')}</select></div>
@@ -1539,7 +1550,7 @@ function saveInteresado(id){
   // la nota escrita se guarda en el historial con fecha
   const notaTxt=$('#f-notas').value.trim(); if(notaTxt) tmpBita.push({fecha:todayISO(),tipo:'Nota',txt:notaTxt});
   const o={nombre,tel:$('#f-tel').value.trim(),mail:$('#f-mail').value.trim().toLowerCase(),
-    referente:$('#f-refint').value==='Sin asignar'?'':$('#f-refint').value,busca:$('#f-busca').value,zona:$('#f-zona').value.trim(),presupuesto:$('#f-presu').value.trim(),canal:$('#f-canal').value,propiedad:$('#f-prop').value.trim(),estado:$('#f-estado').value,prioridad:$('#f-prio').value,proxima:{txt:$('#f-proxtxt').value.trim(),fecha:$('#f-proxfec').value,hora:$('#f-proxhora').value},notas:'',montoOp:+$('#f-monto').value||0,comPct:+$('#f-compct').value||0,moneda:$('#f-moneda').value,fechaCierre:$('#f-fechacierre').value,cobra:$('#f-cobra').value,bitacora:tmpBita};
+    referente:$('#f-refint').value==='Sin asignar'?'':$('#f-refint').value,observaciones:$('#f-obs').value.trim(),busca:$('#f-busca').value,zona:$('#f-zona').value.trim(),presupuesto:$('#f-presu').value.trim(),canal:$('#f-canal').value,propiedad:$('#f-prop').value.trim(),estado:$('#f-estado').value,prioridad:$('#f-prio').value,proxima:{txt:$('#f-proxtxt').value.trim(),fecha:$('#f-proxfec').value,hora:$('#f-proxhora').value},notas:'',montoOp:+$('#f-monto').value||0,comPct:+$('#f-compct').value||0,moneda:$('#f-moneda').value,fechaCierre:$('#f-fechacierre').value,cobra:$('#f-cobra').value,bitacora:tmpBita};
   let obj;
   if(id){ obj=db.interesados.find(x=>x.id===id); Object.assign(obj,o); }
   else { o.id=uid(); o.alta=todayISO(); db.interesados.unshift(o); obj=o; }
