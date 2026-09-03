@@ -218,6 +218,13 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .hist-item{font-size:11px;color:var(--ink2);line-height:1.5}
 .hist-item .hf{font-family:var(--mono);font-size:10px;color:var(--ink3);display:block}
 .hist-item .ht{display:inline-block;font-size:9px;background:var(--bg2);color:var(--ink3);padding:1px 6px;border-radius:6px;margin-right:5px}
+/* Seguimiento rápido en la propia tarjeta: estado, qué busca y referente */
+.icard-quick{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px;padding-top:11px;border-top:1px dashed var(--border)}
+.icard-quick label{display:flex;flex-direction:column;gap:3px;flex:1 1 112px;min-width:0}
+.icard-quick label span{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+.icard-quick select{width:100%;font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg2);
+  border:1px solid var(--border);border-radius:8px;padding:6px 7px;cursor:pointer}
+.icard-quick select:focus-visible{outline:2px solid var(--green);outline-offset:1px}
 .icard-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--border);margin-top:3px}
 .icard-foot .fecha{font-size:10px;color:var(--ink3)}
 .acts{display:flex;gap:6px}
@@ -414,9 +421,14 @@ input,select,textarea{font-size:15.5px}
   <div class="page" id="page-interesados">
     <div class="page-hdr">
       <div><h2>Interesados</h2><div class="sub">Cada persona que preguntó o con la que te reuniste</div></div>
-      <button class="btn primary" onclick="openInteresado()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nuevo</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btn-mapa" onclick="importarVisitas()" title="Traer la gente que se registró en la app del mapa">🗺️ Traer del mapa</button>
+        <button class="btn primary" onclick="openInteresado()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nuevo</button>
+      </div>
     </div>
     <div class="subnav" id="fil-estado"></div>
+    <div class="subnav" id="fil-int-ref"></div>
+    <div class="subnav" id="fil-int-busca"></div>
     <div class="cards" id="interesados"></div>
   </div>
 
@@ -497,8 +509,10 @@ const PRIO_DOT={'Alta':'alta','Media':'media','Baja':'baja'};
 const PRIO_ORDEN={'Alta':0,'Media':1,'Baja':2};
 const PROP_ESTADOS=['Disponible','Reservada','Pausada','Alquilada','Vendida'];
 const PROP_BADGE={'Disponible':'green','Reservada':'amber','Pausada':'gray','Alquilada':'green','Vendida':'gray'};
-const CANALES=['Instagram','Facebook','WhatsApp','Referido','Cartel','Web / Portal','Feria o evento','Otro'];
+const CANALES=['Instagram','Facebook','WhatsApp','Referido','Cartel','Web / Portal','Feria o evento','App del mapa','Otro'];
 const BUSCA=['Lote','Casa','Alquiler','Inversión','Otro'];
+/* Referente = de quién es el cliente. Se elige a mano acá; el mapa no lo sabe. */
+const REFS=['Sin asignar','Fran','Cande'];
 /* Tipos de una propiedad: qué es. Que sea alquiler o venta va aparte,
    en el campo Operación, así una casa en alquiler puede decir que es casa. */
 const PROP_TIPOS=['Casa','Lote','Inversión','Otro'];
@@ -786,6 +800,7 @@ function cuando(d){
 
 const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
 let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta';
+let filtroRefInt='Todos', filtroBusca='Todos';
 
 function renderNav(){
   $('#nav').innerHTML=TABS.map(([k,n])=>{
@@ -883,17 +898,41 @@ function marcarTodoRepartido(){
 }
 
 /* ============ Interesados ============ */
+/* Los tres filtros (prioridad, referente y qué busca) se combinan, y los números
+   de cada botón se cuentan sobre la lista ya filtrada por los OTROS dos. */
+const refInt=i=>i.referente||'Sin asignar';
+const buscaDe=i=>i.busca||'Otro';
+function intsFiltrados(excepto){
+  return db.interesados.filter(i=>
+    (excepto==='prio'  || filtroEstado==='Todos'  || i.prioridad===filtroEstado) &&
+    (excepto==='ref'   || filtroRefInt==='Todos'  || refInt(i)===filtroRefInt) &&
+    (excepto==='busca' || filtroBusca==='Todos'   || buscaDe(i)===filtroBusca));
+}
+function hayFiltrosInt(){ return filtroEstado!=='Todos'||filtroRefInt!=='Todos'||filtroBusca!=='Todos'; }
+function limpiarFiltrosInt(){ filtroEstado='Todos'; filtroRefInt='Todos'; filtroBusca='Todos'; renderFilEstado(); renderInteresados(); }
+function filaFiltroInt(el,label,ops,activo,fn,valorDe,excepto,extra){
+  const base=intsFiltrados(excepto);
+  const btns=ops.map(o=>{
+    const n = o==='Todos' ? base.length : base.filter(i=>valorDe(i)===o).length;
+    const dot = (excepto==='prio'&&o!=='Todos') ? `<span class="prio-dot prio-${PRIO_DOT[o]}" style="margin-right:6px"></span>` : '';
+    return `<button class="subnav-btn ${activo===o?'active':''}" onclick="${fn}('${o}')">${dot}${o}<span class="c">${n}</span></button>`;
+  }).join('');
+  $(el).innerHTML=`<span class="subnav-lbl">${label}</span>${btns}${extra||''}`;
+}
 function renderFilEstado(){
-  const cont={Todos:db.interesados.length}; PRIOS.forEach(p=>cont[p]=db.interesados.filter(i=>i.prioridad===p).length);
-  const list=['Todos',...PRIOS];
-  $('#fil-estado').innerHTML=list.map(k=>`<button class="subnav-btn ${filtroEstado===k?'active':''}" onclick="setEstado('${k}')">${k==='Todos'?'':`<span class="prio-dot prio-${PRIO_DOT[k]}" style="margin-right:6px"></span>`}${k}<span class="c">${cont[k]||0}</span></button>`).join('');
+  filaFiltroInt('#fil-estado','Prioridad',['Todos',...PRIOS],filtroEstado,'setEstado',i=>i.prioridad,'prio');
+  filaFiltroInt('#fil-int-ref','Referente',['Todos','Fran','Cande','Sin asignar'],filtroRefInt,'setIntRef',refInt,'ref');
+  filaFiltroInt('#fil-int-busca','Qué busca',['Todos',...BUSCA],filtroBusca,'setIntBusca',buscaDe,'busca',
+    hayFiltrosInt()?`<span class="subnav-clr" onclick="limpiarFiltrosInt()">limpiar filtros</span>`:'');
 }
 function setEstado(k){ filtroEstado=k; renderFilEstado(); renderInteresados(); }
+function setIntRef(k){ filtroRefInt=k; renderFilEstado(); renderInteresados(); }
+function setIntBusca(k){ filtroBusca=k; renderFilEstado(); renderInteresados(); }
 function renderInteresados(){
-  let list=db.interesados.slice();
-  if(filtroEstado!=='Todos') list=list.filter(i=>i.prioridad===filtroEstado);
+  const list=intsFiltrados();
   list.sort((a,b)=>(PRIO_ORDEN[a.prioridad]-PRIO_ORDEN[b.prioridad])||((a.proxima?.fecha||'9999').localeCompare(b.proxima?.fecha||'9999')));
-  $('#interesados').innerHTML=list.length?list.map(cardInteresado).join(''):`<div class="empty">No hay interesados en este filtro.</div>`;
+  $('#interesados').innerHTML=list.length?list.map(cardInteresado).join('')
+    :`<div class="empty">No hay interesados con estos filtros.${hayFiltrosInt()?` <a href="javascript:void(0)" onclick="limpiarFiltrosInt()">Limpiar filtros</a>`:''}</div>`;
 }
 function cardInteresado(i){
   const eb=ESTADO_BADGE[i.estado]||'gray';
@@ -906,16 +945,22 @@ function cardInteresado(i){
   return `<div class="icard" style="cursor:pointer" onclick="openInteresado('${i.id}')">
     <div class="icard-hdr">
       <div><div class="icard-nom"><span class="prio-dot prio-${PRIO_DOT[i.prioridad]}" title="${i.prioridad}"></span>${esc(i.nombre)}</div><div class="icard-tipo">${esc(i.busca)}${i.zona?' · '+esc(i.zona):''}</div></div>
-      <div class="icard-badges"><span class="badge badge-${eb}">${esc(i.estado)}</span></div>
+      <div class="icard-badges">${i.referente?`<span class="badge badge-${REF_BADGE[i.referente]||'gray'}">${esc(i.referente)}</span>`:''}<span class="badge badge-${eb}">${esc(i.estado)}</span></div>
     </div>
     <div class="tags">
       ${i.propiedad?`<span class="tag">🏡 <b>${esc(i.propiedad)}</b></span>`:''}
       ${i.presupuesto?`<span class="tag">💰 ${esc(i.presupuesto)}</span>`:''}
       <span class="tag">📣 ${esc(i.canal)}</span>
+      ${i.mail?`<span class="tag">✉️ ${esc(i.mail)}</span>`:''}
     </div>
     ${prox}
     ${notaPrev}
     ${hist}
+    <div class="icard-quick" onclick="event.stopPropagation()">
+      <label><span>Seguimiento</span><select onchange="setIntCampo('${i.id}','estado',this.value)">${opt(ESTADOS,i.estado)}</select></label>
+      <label><span>Qué busca</span><select onchange="setIntCampo('${i.id}','busca',this.value)">${opt(BUSCA,i.busca)}</select></label>
+      <label><span>Referente</span><select onchange="setIntCampo('${i.id}','referente',this.value)">${opt(REFS,i.referente||'Sin asignar')}</select></label>
+    </div>
     <div class="icard-foot">
       <span class="fecha">Alta ${fechaLarga(i.alta)}</span>
       <div class="acts">
@@ -924,6 +969,17 @@ function cardInteresado(i){
       </div>
     </div>
   </div>`;
+}
+/* Cambiar seguimiento, qué busca o referente desde la tarjeta, sin abrir la ficha.
+   Los cambios de estado quedan anotados en el historial para no perder el rastro. */
+function setIntCampo(id,campo,valor){
+  const i=db.interesados.find(x=>x.id===id); if(!i)return;
+  const antes=i[campo]||'';
+  i[campo]=(campo==='referente'&&valor==='Sin asignar')?'':valor;
+  if(campo==='estado'&&antes!==valor){ (i.bitacora=i.bitacora||[]).push({fecha:todayISO(),tipo:'Estado',txt:'Pasó de «'+(antes||'—')+'» a «'+valor+'»'}); }
+  syncContacto(i); syncCierre(i); save(); renderAll();
+  // Si lo marcó cerrado sin monto, le abro la ficha para que cargue la plata
+  if(campo==='estado'&&valor==='Cerrado'&&!i.montoOp) openInteresado(id);
 }
 function delInteresado(id){ if(!confirm('¿Eliminar este interesado?'))return; db.interesados=db.interesados.filter(i=>i.id!==id); db.contactos=db.contactos.filter(c=>c.refInt!==id); db.cierres=db.cierres.filter(c=>c.refInt!==id); save(); renderAll(); }
 
@@ -1396,12 +1452,14 @@ function renderContactos(){
   let orden=db.contactos.slice().sort((a,b)=>(a.refInt?1:0)-(b.refInt?1:0));
   const norm=s=>(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
   const q=norm(contactoQuery.trim());
-  if(q) orden=orden.filter(c=>{ const int=c.refInt?db.interesados.find(i=>i.id===c.refInt):null; return norm([c.nombre,c.rol,c.tel,c.notas,int&&int.nombre,int&&int.busca].filter(Boolean).join(' ')).includes(q); });
+  if(q) orden=orden.filter(c=>{ const int=c.refInt?db.interesados.find(i=>i.id===c.refInt):null; return norm([c.nombre,c.rol,c.tel,c.mail,c.notas,int&&int.nombre,int&&int.busca].filter(Boolean).join(' ')).includes(q); });
   $('#contactos').innerHTML=orden.length?orden.map(c=>{
     const int=c.refInt?db.interesados.find(i=>i.id===c.refInt):null;
     const linked=!!int;
     const open= linked ? `onclick="openInteresado('${c.refInt}')" style="cursor:pointer"` : '';
-    const meta= linked ? `Viene de la tarjeta «${esc(int.nombre)}» · ${esc(int.busca)} · ${esc(int.estado)}` : esc(c.rol||'');
+    const contacto=[c.tel,c.mail].filter(Boolean).map(esc).join(' · ');
+    const meta= (linked ? `Viene de la tarjeta «${esc(int.nombre)}» · ${esc(int.busca)} · ${esc(int.estado)}` : esc(c.rol||''))
+      + (contacto?`<br>${contacto}`:'');
     return `<div class="srow" ${open}>
       <div class="srow-main"><div class="srow-tit">${esc(c.nombre)} ${linked?'<span class="badge badge-green" style="vertical-align:middle">🔗 Interesado</span>':''}</div><div class="srow-meta">${meta}</div>${c.notas?`<div class="srow-notas">${esc(c.notas)}</div>`:''}</div>
       <div class="srow-right">${c.tel?`<a class="btn success sm" href="${waLink(c.tel)}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
@@ -1438,6 +1496,8 @@ function openInteresado(id,prefFecha){
       <div class="field"><label>Nombre / referencia</label><input id="f-nombre" value="${i?esc(i.nombre):''}" placeholder="Ej: Carla y Nahuel"></div>
       <div class="g2"><div class="field"><label>WhatsApp / teléfono</label><input id="f-tel" value="${i?esc(i.tel):''}" placeholder="549347..."></div>
         <div class="field"><label>Qué busca</label><select id="f-busca">${opt(BUSCA,i?i.busca:'Lote')}</select></div></div>
+      <div class="g2"><div class="field"><label>Mail</label><input id="f-mail" type="email" value="${i?esc(i.mail||''):''}" placeholder="nombre@gmail.com"></div>
+        <div class="field"><label>Referente</label><select id="f-refint">${opt(REFS,i?(i.referente||'Sin asignar'):'Sin asignar')}</select><div class="hint">Quién de las dos lo está atendiendo.</div></div></div>
       <div class="g2"><div class="field"><label>Zona de interés</label><input id="f-zona" value="${i?esc(i.zona):''}"></div>
         <div class="field"><label>Presupuesto que maneja</label><input id="f-presu" value="${i?esc(i.presupuesto):''}" placeholder="Ej: USD 20.000"></div></div>
       <div class="g2"><div class="field"><label>Canal (por dónde llegó)</label><select id="f-canal">${opt(CANALES,i?i.canal:'Instagram')}</select></div>
@@ -1478,7 +1538,8 @@ function saveInteresado(id){
   const nombre=$('#f-nombre').value.trim(); if(!nombre){alert('Poné un nombre');return;}
   // la nota escrita se guarda en el historial con fecha
   const notaTxt=$('#f-notas').value.trim(); if(notaTxt) tmpBita.push({fecha:todayISO(),tipo:'Nota',txt:notaTxt});
-  const o={nombre,tel:$('#f-tel').value.trim(),busca:$('#f-busca').value,zona:$('#f-zona').value.trim(),presupuesto:$('#f-presu').value.trim(),canal:$('#f-canal').value,propiedad:$('#f-prop').value.trim(),estado:$('#f-estado').value,prioridad:$('#f-prio').value,proxima:{txt:$('#f-proxtxt').value.trim(),fecha:$('#f-proxfec').value,hora:$('#f-proxhora').value},notas:'',montoOp:+$('#f-monto').value||0,comPct:+$('#f-compct').value||0,moneda:$('#f-moneda').value,fechaCierre:$('#f-fechacierre').value,cobra:$('#f-cobra').value,bitacora:tmpBita};
+  const o={nombre,tel:$('#f-tel').value.trim(),mail:$('#f-mail').value.trim().toLowerCase(),
+    referente:$('#f-refint').value==='Sin asignar'?'':$('#f-refint').value,busca:$('#f-busca').value,zona:$('#f-zona').value.trim(),presupuesto:$('#f-presu').value.trim(),canal:$('#f-canal').value,propiedad:$('#f-prop').value.trim(),estado:$('#f-estado').value,prioridad:$('#f-prio').value,proxima:{txt:$('#f-proxtxt').value.trim(),fecha:$('#f-proxfec').value,hora:$('#f-proxhora').value},notas:'',montoOp:+$('#f-monto').value||0,comPct:+$('#f-compct').value||0,moneda:$('#f-moneda').value,fechaCierre:$('#f-fechacierre').value,cobra:$('#f-cobra').value,bitacora:tmpBita};
   let obj;
   if(id){ obj=db.interesados.find(x=>x.id===id); Object.assign(obj,o); }
   else { o.id=uid(); o.alta=todayISO(); db.interesados.unshift(o); obj=o; }
@@ -1488,8 +1549,8 @@ function saveInteresado(id){
 // Enlaza cada interesado con un contacto (mismo nombre + teléfono)
 function syncContacto(i){
   let c=db.contactos.find(x=>x.refInt===i.id);
-  if(c){ c.nombre=i.nombre; c.tel=i.tel; }
-  else { db.contactos.unshift({id:uid(), refInt:i.id, nombre:i.nombre, rol:'Interesado', tel:i.tel, notas:(i.busca||'')+(i.zona?' · '+i.zona:'')}); }
+  if(c){ c.nombre=i.nombre; c.tel=i.tel; c.mail=i.mail||''; }
+  else { db.contactos.unshift({id:uid(), refInt:i.id, nombre:i.nombre, rol:'Interesado', tel:i.tel, mail:i.mail||'', notas:(i.busca||'')+(i.zona?' · '+i.zona:'')}); }
 }
 // Genera/actualiza el cierre automático cuando el interesado queda «Cerrado»
 function syncCierre(i){
@@ -1604,6 +1665,7 @@ function openContacto(id){
       <div class="field"><label>Nombre</label><input id="c-nom" value="${c?esc(c.nombre):''}" placeholder="Ej: Escribanía Rossi"></div>
       <div class="g2"><div class="field"><label>Rol</label><input id="c-rol" value="${c?esc(c.rol):''}" placeholder="Ej: Escribano"></div>
         <div class="field"><label>WhatsApp / teléfono</label><input id="c-tel" value="${c?esc(c.tel):''}"></div></div>
+      <div class="field"><label>Mail</label><input id="c-mail" type="email" value="${c?esc(c.mail||''):''}" placeholder="nombre@gmail.com"></div>
       <div class="field"><label>Notas</label><textarea id="c-notas">${c?esc(c.notas):''}</textarea></div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveContacto('${c?c.id:''}')">Guardar</button></div>
     </div>`;
@@ -1611,9 +1673,125 @@ function openContacto(id){
 }
 function saveContacto(id){
   const n=$('#c-nom').value.trim(); if(!n){alert('Poné un nombre');return;}
-  const o={nombre:n,rol:$('#c-rol').value.trim(),tel:$('#c-tel').value.trim(),notas:$('#c-notas').value.trim()};
+  const o={nombre:n,rol:$('#c-rol').value.trim(),tel:$('#c-tel').value.trim(),mail:$('#c-mail').value.trim().toLowerCase(),notas:$('#c-notas').value.trim()};
   if(id) Object.assign(db.contactos.find(x=>x.id===id),o); else {o.id=uid();db.contactos.unshift(o);}
   save(); closeModal(); renderContactos();
+}
+
+/* ============ Traer la gente que entró a la app del mapa ============
+   La hoja "Ingresos" del mapa es pública, así que la leo por CSV. Cada persona
+   que se registró allá entra acá como interesado, con su teléfono y su mail.
+   NO traigo a los umepayenses (columna Umepay de la planilla) ni a las dueñas. */
+const MAPA_CSV='https://docs.google.com/spreadsheets/d/17yWE-8ZddG2gUA3L8kWKvGNHoFQikSiHMoCarb_MmUo/export?format=csv&gid=4668214';
+const MAPA_DUENAS=['santiago','fran silveyra','candelaria','santiago moretto','candelaria rivas','santi prueba'];
+const sinAcentos=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+/* Los números vienen tipeados de mil formas; los llevo todos a 54 9 + 10 dígitos */
+function telNorm(s){ const d=(s||'').replace(/\D/g,''); if(!d) return '';
+  if(d.slice(0,2)==='54'){ let r=d.slice(2); if(r[0]!=='9') r='9'+r; return '54'+r; }
+  if(d[0]==='9'&&d.length===11) return '54'+d;
+  return '549'+d; }
+function fechaMapa(s){ const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/.exec((s||'').trim());
+  return m? new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+m[6]) : null; }
+
+/* Junta las filas de una misma persona: la misma gente se registró con el nombre
+   escrito distinto o con el número mal tipeado, pero repite mail o teléfono. */
+function visitasDelMapa(csv){
+  const filas=csv.replace(/\r/g,'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const f=l.split(',');
+    return {fecha:fechaMapa(f[0]), nombre:(f[1]||'').trim(), tel:telNorm(f[2]),
+            mail:(f[4]||'').trim().toLowerCase(),
+            ume:/umepay/i.test(f[5]||'')||/umepay/i.test(f[6]||'')};
+  }).filter(r=>r.fecha);
+
+  const padre={};
+  const find=x=>{ if(padre[x]===undefined)padre[x]=x; while(padre[x]!==x){padre[x]=padre[padre[x]];x=padre[x];} return x; };
+  const unir=(a,b)=>{ a=find(a); b=find(b); if(a!==b) padre[b]=a; };
+  filas.forEach((r,n)=>{ const ks=[];
+    if(r.tel) ks.push('t:'+r.tel); if(r.mail) ks.push('m:'+r.mail);
+    if(!ks.length){ r.key='x:'+n; find(r.key); return; }
+    ks.forEach(find); if(ks.length===2) unir(ks[0],ks[1]); r.key=ks[0]; });
+
+  const grupos={}; filas.forEach(r=>{ const g=find(r.key); (grupos[g]=grupos[g]||[]).push(r); });
+  const masComun=arr=>{ const c={}; arr.filter(Boolean).forEach(v=>{c[v]=(c[v]||0)+1;});
+    return Object.keys(c).sort((a,b)=>c[b]-c[a]||b.length-a.length)[0]||''; };
+
+  return Object.keys(grupos).map(k=>{
+    const rs=grupos[k].sort((a,b)=>a.fecha-b.fecha);
+    // Dos ingresos separados por menos de media hora son la misma visita (la app
+    // registra un "reingreso" cada vez que se abre, y recargar no es volver).
+    let visitas=1; for(let n=1;n<rs.length;n++) if(rs[n].fecha-rs[n-1].fecha>30*60*1000) visitas++;
+    const tels=rs.map(r=>r.tel).filter(Boolean), buenos=tels.filter(t=>t.length===13);
+    return { nombre: rs.map(r=>r.nombre).filter(Boolean).sort((a,b)=>b.length-a.length)[0]||'Sin nombre',
+             tel: buenos.length?masComun(buenos):masComun(tels), mail: masComun(rs.map(r=>r.mail)),
+             visitas, dias:new Set(rs.map(r=>r.fecha.toDateString())).size,
+             primera:rs[0].fecha, ultima:rs[rs.length-1].fecha,
+             ume: rs.some(r=>r.ume)||rs.some(r=>MAPA_DUENAS.indexOf(sinAcentos(r.nombre))>=0) };
+  }).filter(p=>!p.ume);
+}
+
+function interesadoDe(p){
+  return db.interesados.find(i=>
+    (p.tel && telNorm(i.tel)===p.tel) ||
+    (p.mail && (i.mail||'').toLowerCase()===p.mail));
+}
+function notaMapa(p){
+  const f=d=>fechaLarga(d.toISOString().slice(0,10));
+  return 'Entró a la app del mapa '+p.visitas+(p.visitas===1?' vez':' veces')+
+         ' en '+p.dias+(p.dias===1?' día':' días')+'. Primera vez el '+f(p.primera)+', última el '+f(p.ultima)+'.';
+}
+
+let mapaCache=null;
+async function leerMapa(){
+  const r=await fetch(MAPA_CSV,{cache:'no-store'});
+  if(!r.ok) throw new Error('sheet '+r.status);
+  mapaCache=visitasDelMapa(await r.text());
+  return mapaCache;
+}
+/* Al abrir la app miro cuántos hay sin traer y lo muestro en el botón. No importo
+   solo: que entre gente a la base es decisión de ustedes, no del navegador. */
+async function chequearMapa(){
+  try{ const gente=await leerMapa();
+    const nuevas=gente.filter(p=>!interesadoDe(p)).length;
+    const b=$('#btn-mapa'); if(b) b.textContent='🗺️ Traer del mapa'+(nuevas?' ('+nuevas+')':'');
+  }catch(e){ console.warn('mapa',e); }
+}
+async function importarVisitas(){
+  const b=$('#btn-mapa'); const antes=b?b.textContent:'';
+  if(b){ b.disabled=true; b.textContent='Leyendo la planilla…'; }
+  try{
+    const gente=mapaCache||await leerMapa();
+    const nuevas=gente.filter(p=>!interesadoDe(p));
+    const viejas=gente.length-nuevas.length;
+    if(!nuevas.length){
+      gente.forEach(p=>{ const i=interesadoDe(p); if(i) refrescarNotaMapa(i,p); });
+      save(); renderAll();
+      alert('No hay visitas nuevas. Las '+viejas+' personas del mapa ya están cargadas (les actualicé cuántas veces entraron).');
+      return;
+    }
+    if(!confirm('Traigo '+nuevas.length+' persona'+(nuevas.length>1?'s':'')+' del mapa como interesados'+
+                (viejas?' ('+viejas+' ya estaban)':'')+'.\n\nQuedan sin referente, para que le asignes Fran o Cande.\n\n¿Dale?')) return;
+    nuevas.forEach(p=>{
+      const o={ id:uid(), nombre:p.nombre, tel:p.tel, mail:p.mail, busca:'Lote', zona:'', presupuesto:'',
+        canal:'App del mapa', prioridad:p.visitas>=5?'Alta':'Media', estado:'Nuevo', propiedad:'',
+        alta:todayISO(), referente:'', proxima:{txt:'',fecha:'',hora:''},
+        notas:'', montoOp:0, comPct:0, moneda:'USD', fechaCierre:'', cobra:'Mitad',
+        bitacora:[{fecha:p.primera.toISOString().slice(0,10), tipo:'Mapa', txt:notaMapa(p)}] };
+      db.interesados.unshift(o); syncContacto(o);
+    });
+    gente.filter(p=>!nuevas.includes(p)).forEach(p=>{ const i=interesadoDe(p); if(i) refrescarNotaMapa(i,p); });
+    save(); renderAll(); go('interesados');
+    alert('Listo: entraron '+nuevas.length+'. Están en Interesados con canal «App del mapa» y sin referente.');
+  }catch(e){ console.warn('importar',e); alert('No pude leer la planilla del mapa. Fijate que tengas internet y probá de nuevo.'); }
+  finally{ if(b){ b.disabled=false; chequearMapa().catch(()=>{ b.textContent=antes; }); } }
+}
+/* Mantiene al día "entró N veces" sin llenar el historial de notas repetidas */
+function refrescarNotaMapa(i,p){
+  i.bitacora=i.bitacora||[];
+  const prev=i.bitacora.find(h=>h.tipo==='Mapa');
+  const txt=notaMapa(p);
+  if(prev){ prev.txt=txt; prev.fecha=p.ultima.toISOString().slice(0,10); }
+  else i.bitacora.push({fecha:p.ultima.toISOString().slice(0,10),tipo:'Mapa',txt});
+  if(!i.mail&&p.mail) i.mail=p.mail;
 }
 
 /* ============ Init ============ */
@@ -1624,7 +1802,7 @@ function renderAll(){
   renderFilProp(); renderPropiedades();
   renderCierres(); renderCaja(); renderNotas(); renderContactos();
 }
-boot();
+boot().then(()=>chequearMapa());
 </script>
 </body>
 </html>
