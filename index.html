@@ -613,6 +613,9 @@ function applyMigrations(){
      Son todas casas (confirmado). Va DESPUÉS de la línea de arriba, que
      todavía necesita leer el tipo viejo. */
   db.propiedades.forEach(p=>{ if(p.tipo==='Alquiler') p.tipo='Casa'; });
+  /* A los que ya vinieron del mapa les anotamos el teléfono original ahora,
+     antes de que empiecen a corregirlos a mano. */
+  db.interesados.forEach(i=>{ if(i.canal==='App del mapa' && !i.telMapa && i.tel) i.telMapa=telNorm(i.tel); });
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function setConn(txt,err){ const t=document.getElementById('conn-txt'); if(t)t.textContent=txt; const d=document.querySelector('.conn .dot'); if(d)d.style.background=err?'#f87171':'#52b788'; }
@@ -1471,7 +1474,7 @@ function renderContactos(){
       <div class="srow-main"><div class="srow-tit">${esc(c.nombre)} ${linked?'<span class="badge badge-green" style="vertical-align:middle">🔗 Interesado</span>':''}</div><div class="srow-meta">${meta}</div>${c.notas?`<div class="srow-notas">${esc(c.notas)}</div>`:''}</div>
       <div class="srow-right">${c.tel?`<a class="btn success sm" href="${waLink(c.tel)}" target="_blank" onclick="event.stopPropagation()">WhatsApp</a>`:''}
         <div class="acts">
-          <button class="iconbtn" onclick="event.stopPropagation();${linked?`openInteresado('${c.refInt}')`:`openContacto('${c.id}')`}" title="${linked?'Editar (se abre la tarjeta del interesado)':'Editar'}">${ICO_LAPIZ}</button>
+          <button class="iconbtn" onclick="event.stopPropagation();openContacto('${c.id}')" title="Editar nombre, teléfono y mail">${ICO_LAPIZ}</button>
           ${linked?'':`<button class="iconbtn del" onclick="event.stopPropagation();delContacto('${c.id}')" title="Eliminar">${ICO_TACHO}</button>`}
         </div>
       </div>
@@ -1670,23 +1673,35 @@ function saveCierre(id){
 
 function openContacto(id){
   const c=id?db.contactos.find(x=>x.id===id):null;
+  const int=(c&&c.refInt)?db.interesados.find(i=>i.id===c.refInt):null;
   $('#modal').innerHTML=`
     <div class="modal-hdr"><div class="modal-title">${c?'Editar contacto':'Nuevo contacto'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
+      ${int?`<div class="hint" style="margin:-2px 0 12px">Esta persona también es un interesado. El nombre, el teléfono y el mail que corrijas acá se actualizan en las dos partes.</div>`:''}
       <div class="field"><label>Nombre</label><input id="c-nom" value="${c?esc(c.nombre):''}" placeholder="Ej: Escribanía Rossi"></div>
-      <div class="g2"><div class="field"><label>Rol</label><input id="c-rol" value="${c?esc(c.rol):''}" placeholder="Ej: Escribano"></div>
+      <div class="g2"><div class="field"><label>Rol</label><input id="c-rol" value="${c?esc(c.rol):''}" placeholder="Ej: Escribano" ${int?'disabled':''}></div>
         <div class="field"><label>WhatsApp / teléfono</label><input id="c-tel" value="${c?esc(c.tel):''}"></div></div>
       <div class="field"><label>Mail</label><input id="c-mail" type="email" value="${c?esc(c.mail||''):''}" placeholder="nombre@gmail.com"></div>
-      <div class="field"><label>Notas</label><textarea id="c-notas">${c?esc(c.notas):''}</textarea></div>
-      <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveContacto('${c?c.id:''}')">Guardar</button></div>
+      <div class="field"><label>Notas</label><textarea id="c-notas" ${int?'disabled':''}>${c?esc(c.notas):''}</textarea>
+        ${int?`<div class="hint">Las notas de esta persona se escriben en su tarjeta de interesado.</div>`:''}</div>
+      <div class="modal-foot">${int?`<button class="btn ghost" style="margin-right:auto" onclick="openInteresado('${int.id}')">Abrir la tarjeta completa</button>`:''}
+        <button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveContacto('${c?c.id:''}')">Guardar</button></div>
     </div>`;
   $('#modalBg').classList.add('open');
 }
 function saveContacto(id){
   const n=$('#c-nom').value.trim(); if(!n){alert('Poné un nombre');return;}
-  const o={nombre:n,rol:$('#c-rol').value.trim(),tel:$('#c-tel').value.trim(),mail:$('#c-mail').value.trim().toLowerCase(),notas:$('#c-notas').value.trim()};
-  if(id) Object.assign(db.contactos.find(x=>x.id===id),o); else {o.id=uid();db.contactos.unshift(o);}
-  save(); closeModal(); renderContactos();
+  const c=id?db.contactos.find(x=>x.id===id):null;
+  const int=(c&&c.refInt)?db.interesados.find(i=>i.id===c.refInt):null;
+  const o={nombre:n,tel:$('#c-tel').value.trim(),mail:$('#c-mail').value.trim().toLowerCase()};
+  /* En los vinculados el rol y las notas los maneja la tarjeta del interesado
+     (los campos están deshabilitados), así que no los pisamos con lo de acá. */
+  if(!int){ o.rol=$('#c-rol').value.trim(); o.notas=$('#c-notas').value.trim(); }
+  if(c) Object.assign(c,o); else {o.id=uid();o.rol=$('#c-rol').value.trim();o.notas=$('#c-notas').value.trim();db.contactos.unshift(o);}
+  // el interesado es la fuente: si está vinculado, la corrección va también allá
+  if(int){ int.nombre=o.nombre; int.tel=o.tel; int.mail=o.mail; }
+  save(); closeModal();
+  if(int) renderAll(); else renderContactos();
 }
 
 /* ============ Traer la gente que entró a la app del mapa ============
@@ -1740,9 +1755,12 @@ function visitasDelMapa(csv){
   }).filter(p=>!p.ume);
 }
 
+/* telMapa guarda el número tal como vino de la planilla. Sin eso, al corregir
+   a mano un teléfono mal tipeado la persona dejaba de reconocerse y el próximo
+   "Traer del mapa" la cargaba de nuevo, duplicada. */
 function interesadoDe(p){
   return db.interesados.find(i=>
-    (p.tel && telNorm(i.tel)===p.tel) ||
+    (p.tel && (telNorm(i.tel)===p.tel || i.telMapa===p.tel)) ||
     (p.mail && (i.mail||'').toLowerCase()===p.mail));
 }
 function notaMapa(p){
@@ -1782,7 +1800,7 @@ async function importarVisitas(){
     if(!confirm('Traigo '+nuevas.length+' persona'+(nuevas.length>1?'s':'')+' del mapa como interesados'+
                 (viejas?' ('+viejas+' ya estaban)':'')+'.\n\nQuedan sin referente, para que le asignes Fran o Cande.\n\n¿Dale?')) return;
     nuevas.forEach(p=>{
-      const o={ id:uid(), nombre:p.nombre, tel:p.tel, mail:p.mail, busca:'Lote', zona:'', presupuesto:'',
+      const o={ id:uid(), nombre:p.nombre, tel:p.tel, telMapa:p.tel, mail:p.mail, busca:'Lote', zona:'', presupuesto:'',
         canal:'App del mapa', prioridad:p.visitas>=5?'Alta':'Media', estado:'Nuevo', propiedad:'',
         alta:todayISO(), referente:'', proxima:{txt:'',fecha:'',hora:''},
         notas:'', montoOp:0, comPct:0, moneda:'USD', fechaCierre:'', cobra:'Mitad',
