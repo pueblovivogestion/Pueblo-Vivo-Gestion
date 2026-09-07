@@ -461,9 +461,10 @@ input,select,textarea{font-size:15.5px}
   <!-- CAJA -->
   <div class="page" id="page-caja">
     <div class="page-hdr">
-      <div><h2>Caja</h2><div class="sub">Comisiones y movimientos de la inmo</div></div>
-      <button class="btn primary" onclick="openMov()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Movimiento</button>
+      <div><h2>Caja</h2><div class="sub" id="caja-sub">Comisiones y movimientos de la inmo</div></div>
+      <button class="btn primary" onclick="nuevoEnCaja()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Movimiento</button>
     </div>
+    <div class="optabs" id="op-caja"></div>
     <div id="caja-resumen"></div>
     <div class="subnav" id="fil-caja"></div>
     <div class="simple" id="caja-lista"></div>
@@ -599,7 +600,7 @@ const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos'
 let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[],tareas:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
 function applyMigrations(){
   const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
   db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
@@ -805,7 +806,7 @@ function cuando(d){
 }
 
 const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
-let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta';
+let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta', tabCaja='pv';
 let filtroRefInt='Todos', filtroBusca='Todos';
 
 function renderNav(){
@@ -1367,9 +1368,37 @@ function cajaTotales(items){
   return t;
 }
 function setFilCaja(k){ filtroCaja=k; renderCaja(); }
+
+/* ---- Caja personal ----
+   Quién usa ESTE teléfono se guarda solo acá, en el navegador: no viaja a la
+   nube ni al teléfono de la otra. Es separación de vista, no un candado: los
+   movimientos personales se guardan junto al resto para que se sincronicen
+   entre los dispositivos de cada una y entren en el respaldo. */
+const SOY_KEY='pv_soy';
+/* soyMem es el respaldo por si el navegador tiene bloqueado el almacenamiento:
+   sin esto quedarías trabada en «¿Quién sos?» sin poder entrar nunca. Así al
+   menos funciona mientras la app esté abierta. */
+let soyMem='';
+function soyQuien(){ try{ const v=localStorage.getItem(SOY_KEY); if(v==='Fran'||v==='Cande') return v; }catch(e){} return soyMem; }
+function setSoy(v){ soyMem=v; try{ localStorage.setItem(SOY_KEY,v); }catch(e){} renderCaja(); }
+function olvidarSoy(){ soyMem=''; try{ localStorage.removeItem(SOY_KEY); }catch(e){} renderCaja(); }
+function personalesDe(q){ return db.personales.filter(x=>x.de===q); }
+function totalPersonales(items){
+  const t={usd:0,ars:0};
+  items.forEach(it=>{ const cur=it.moneda==='USD'?'usd':'ars'; t[cur]+=(it.tipo==='Gasto'?-1:1)*(+it.monto||0); });
+  return t;
+}
+function setTabCaja(k){ tabCaja=k; filtroCaja='Todos'; renderCaja(); }
+function nuevoEnCaja(){ if(tabCaja==='mia'){ if(!soyQuien()){ alert('Primero decinos quién sos en esta pantalla.'); return; } openPersonal(); } else openMov(); }
+
 function renderCaja(){
   const items=cajaMovimientos();
   const t=cajaTotales(items);
+  const yo=soyQuien();
+  $('#op-caja').innerHTML=[['pv','Pueblo Vivo'],['mia',yo?'Mi caja · '+esc(yo):'Mi caja']]
+    .map(([k,lbl])=>`<button class="optab ${tabCaja===k?'active':''}" onclick="setTabCaja('${k}')">${lbl}</button>`).join('');
+  if(tabCaja==='mia'){ renderCajaMia(t); return; }
+  $('#caja-sub').textContent='Comisiones y movimientos de la inmo';
   $('#caja-resumen').innerHTML=`
     <div class="reparto">
       <div class="reparto-t">💵 Saldo de caja · por socia</div>
@@ -1396,6 +1425,79 @@ function renderCaja(){
     </div>`;
   }).join(''):`<div class="empty">No hay movimientos todavía.</div>`;
 }
+function renderCajaMia(t){
+  const yo=soyQuien();
+  if(!yo){
+    $('#caja-sub').textContent='Tu caja personal';
+    $('#caja-resumen').innerHTML=`
+      <div class="reparto">
+        <div class="reparto-t">¿Quién sos?</div>
+        <div class="hint" style="margin:4px 0 13px">Se guarda solo en este teléfono. Cada una ve su caja personal en el suyo y no la de la otra.</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn success" style="flex:1" onclick="setSoy('Fran')">Soy Fran</button>
+          <button class="btn success" style="flex:1" onclick="setSoy('Cande')">Soy Cande</button>
+        </div>
+      </div>`;
+    $('#fil-caja').innerHTML=''; $('#caja-lista').innerHTML='';
+    return;
+  }
+  $('#caja-sub').textContent='Tu parte de Pueblo Vivo más lo tuyo personal';
+  const mios=personalesDe(yo), tp=totalPersonales(mios), pv=t[yo];
+  const tot={usd:pv.usd+tp.usd, ars:pv.ars+tp.ars};
+  $('#caja-resumen').innerHTML=`
+    <div class="reparto">
+      <div class="reparto-t" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span>💰 Tu total · ${esc(yo)}</span>
+        <span class="subnav-clr" style="margin:0" onclick="olvidarSoy()">no soy ${esc(yo)}</span>
+      </div>
+      <div class="reparto-grid">
+        <div class="rep-col"><div class="rep-name">De Pueblo Vivo</div><div class="rep-val">${dual(pv)}</div><div class="rep-sub">te corresponde</div></div>
+        <div class="rep-sep"></div>
+        <div class="rep-col"><div class="rep-name">Personal</div><div class="rep-val">${dual(tp)}</div><div class="rep-sub">${mios.length} movimiento${mios.length===1?'':'s'}</div></div>
+      </div>
+      <div class="reparto-pend"><span>Total tuyo</span><span class="amt" style="color:${(tot.usd<0||tot.ars<0)?'var(--red)':'var(--green)'}">${dual(tot)}</span></div>
+    </div>`;
+  $('#fil-caja').innerHTML=['Todos','Ingreso','Gasto'].map(f=>
+    `<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${f==='Todos'?mios.length:mios.filter(i=>i.tipo===f).length}</span></button>`).join('');
+  let list=mios.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  if(filtroCaja!=='Todos') list=list.filter(i=>i.tipo===filtroCaja);
+  $('#caja-lista').innerHTML=list.length?list.map(it=>{
+    const sig=it.moneda==='USD'?'US$':'$', ing=it.tipo==='Ingreso', col=ing?'var(--green)':'var(--red)';
+    return `<div class="srow">
+      <div class="srow-main"><div class="srow-tit" style="font-size:14px">${ing?'▲':'▼'} ${esc(it.desc||it.cat||'Movimiento')}</div>
+        <div class="srow-meta">${fechaLarga(it.fecha)}${it.cat?' · '+esc(it.cat):''}</div></div>
+      <div class="srow-right"><span class="srow-precio" style="color:${col}">${ing?'+':'−'}${sig}${nfmt(Math.abs(+it.monto||0))}</span>
+        <div class="acts"><button class="iconbtn" title="Editar" onclick="openPersonal('${it.id}')">${ICO_LAPIZ}</button>
+          <button class="iconbtn del" title="Eliminar" onclick="delPersonal('${it.id}')">${ICO_TACHO}</button></div></div>
+    </div>`;
+  }).join(''):`<div class="empty">Todavía no cargaste movimientos personales.</div>`;
+}
+function openPersonal(id){
+  const yo=soyQuien(); if(!yo) return;
+  const m=id?db.personales.find(x=>x.id===id):null;
+  $('#modal').innerHTML=`
+    <div class="modal-hdr"><div class="modal-title">${m?'Editar movimiento personal':'Nuevo movimiento personal'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin:-2px 0 12px">Va a tu caja personal (${esc(yo)}). No entra en la caja de Pueblo Vivo ni se ve en el teléfono de la otra.</div>
+      <div class="g2"><div class="field"><label>Tipo</label><select id="pm-tipo">${opt(MOV_TIPOS,m?m.tipo:'Ingreso')}</select></div>
+        <div class="field"><label>Fecha</label><input type="date" id="pm-fec" value="${m?m.fecha:todayISO()}"></div></div>
+      <div class="field"><label>Descripción</label><input id="pm-desc" value="${m?esc(m.desc):''}" placeholder="Ej: Sueldo / Supermercado / Alquiler"></div>
+      <div class="g2"><div class="field"><label>Monto</label><input type="number" id="pm-monto" value="${m?m.monto:''}" placeholder="Ej: 50000"></div>
+        <div class="field"><label>Moneda</label><select id="pm-mon"><option ${!m||m.moneda==='USD'?'selected':''}>USD</option><option ${m&&m.moneda==='$'?'selected':''}>$</option></select></div></div>
+      <div class="field"><label>Categoría</label><select id="pm-cat">${opt(CAJA_CAT,m?m.cat:'Otro')}</select></div>
+      <div class="modal-foot">${m?`<button class="btn ghost" style="color:var(--red);margin-right:auto" onclick="delPersonal('${m.id}');closeModal()">Eliminar</button>`:''}<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePersonal('${m?m.id:''}')">Guardar</button></div>
+    </div>`;
+  $('#modalBg').classList.add('open');
+}
+function savePersonal(id){
+  const yo=soyQuien(); if(!yo) return;
+  const monto=+$('#pm-monto').value||0; if(!monto){ alert('Poné un monto'); return; }
+  const o={de:yo,tipo:$('#pm-tipo').value,fecha:$('#pm-fec').value||todayISO(),desc:$('#pm-desc').value.trim(),monto,moneda:$('#pm-mon').value,cat:$('#pm-cat').value};
+  if(id) Object.assign(db.personales.find(x=>x.id===id),o); else { o.id=uid(); db.personales.unshift(o); }
+  save(); closeModal(); renderCaja();
+}
+function delPersonal(id){ if(!confirm('¿Eliminar este movimiento personal?'))return; db.personales=db.personales.filter(x=>x.id!==id); save(); renderCaja(); }
+
 function openMov(id){
   const m=id?db.movimientos.find(x=>x.id===id):null;
   $('#modal').innerHTML=`
