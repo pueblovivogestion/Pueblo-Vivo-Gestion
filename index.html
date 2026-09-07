@@ -109,6 +109,10 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .prot-nota-add{display:inline-block;margin:4px 0 0 24px;font-size:11px;color:var(--ink3);
   cursor:pointer;text-decoration:underline}
 .prot-nota-add:hover{color:var(--green)}
+.mover{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.catnew{display:flex;gap:6px;margin-top:7px}
+.catnew[hidden]{display:none}
+.mover-actual{font-size:11.5px;color:var(--ink3);border:1px dashed var(--border2);border-radius:20px;padding:5px 12px}
 .icard-obs{font-size:12px;color:var(--ink2);line-height:1.55;margin-top:9px;white-space:pre-wrap;
   background:var(--bg2);border-radius:7px;padding:8px 11px}
 @media(max-width:640px){ .icard-obs{font-size:13.5px} }
@@ -520,6 +524,8 @@ const REFS=['Sin asignar','Fran','Cande'];
 /* Tipos de una propiedad: qué es. Que sea alquiler o venta va aparte,
    en el campo Operación, así una casa en alquiler puede decir que es casa. */
 const PROP_TIPOS=['Casa','Lote','Inversión','Otro'];
+/* Con las que arranca cada caja personal. Después cada una agrega las suyas. */
+const CATS_PERSONAL_INI=['Sen de Campo','Siembra Dicha','Escuela','Casa','Supermercado','Salida','Fútbol','Salud','Hijos','Otro'];
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -600,7 +606,7 @@ const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos'
 let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[],tareas:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales','catsPersonales'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
 function applyMigrations(){
   const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
   db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
@@ -617,6 +623,12 @@ function applyMigrations(){
   /* A los que ya vinieron del mapa les anotamos el teléfono original ahora,
      antes de que empiecen a corregirlos a mano. */
   db.interesados.forEach(i=>{ if(i.canal==='App del mapa' && !i.telMapa && i.tel) i.telMapa=telNorm(i.tel); });
+  /* Categorías de arranque de las cajas personales, una copia para cada una.
+     El flag evita que se vuelvan a crear si después las borran. */
+  if(!db.catsSeed){
+    ['Fran','Cande'].forEach(q=>CATS_PERSONAL_INI.forEach(n=>db.catsPersonales.push({id:uid()+q+n.length,de:q,nombre:n})));
+    db.catsSeed=true;
+  }
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function setConn(txt,err){ const t=document.getElementById('conn-txt'); if(t)t.textContent=txt; const d=document.querySelector('.conn .dot'); if(d)d.style.background=err?'#f87171':'#52b788'; }
@@ -1388,6 +1400,36 @@ function totalPersonales(items){
   items.forEach(it=>{ const cur=it.moneda==='USD'?'usd':'ars'; t[cur]+=(it.tipo==='Gasto'?-1:1)*(+it.monto||0); });
   return t;
 }
+function catsDe(q){ return db.catsPersonales.filter(c=>c.de===q).map(c=>c.nombre); }
+
+/* ---- Mover un movimiento de una caja a otra ----
+   Las comisiones no entran acá: salen de los cierres y no son movimientos
+   sueltos, así que no tienen id propio que mover. */
+const CAJAS=['Pueblo Vivo','Fran','Cande'];
+function cajaDelMov(id){
+  const m=db.movimientos.find(x=>x.id===id); if(m) return {m,caja:'Pueblo Vivo'};
+  const p=db.personales.find(x=>x.id===id); if(p) return {m:p,caja:p.de};
+  return null;
+}
+function botonesMover(id,actual){
+  if(!id) return '';
+  return `<div class="field"><label>Mover a otra caja</label>
+    <div class="mover">${CAJAS.map(d=> d===actual
+      ? `<span class="mover-actual">${d} · está acá</span>`
+      : `<button type="button" class="btn sm" onclick="moverA('${id}','${d}')">${d}</button>`).join('')}</div>
+    <div class="hint">Se lleva la fecha, el monto, la descripción y la categoría. Si cambiaste algo en esta pantalla, guardá primero.</div></div>`;
+}
+function moverA(id,destino){
+  const r=cajaDelMov(id); if(!r) return;
+  const {m,caja}=r; if(destino===caja) return;
+  if(!confirm('¿Mover «'+(m.desc||m.cat||'este movimiento')+'» a la caja de '+destino+'?')) return;
+  const base={id:m.id,tipo:m.tipo,fecha:m.fecha,desc:m.desc,monto:m.monto,moneda:m.moneda,cat:m.cat};
+  db.movimientos=db.movimientos.filter(x=>x.id!==id);
+  db.personales=db.personales.filter(x=>x.id!==id);
+  if(destino==='Pueblo Vivo') db.movimientos.unshift({...base, quien:(caja==='Pueblo Vivo'?(m.quien||'Ambas'):caja)});
+  else db.personales.unshift({...base, de:destino});
+  save(); closeModal(); renderCaja();
+}
 function setTabCaja(k){ tabCaja=k; filtroCaja='Todos'; renderCaja(); }
 function nuevoEnCaja(){ if(tabCaja==='mia'){ if(!soyQuien()){ alert('Primero decinos quién sos en esta pantalla.'); return; } openPersonal(); } else openMov(); }
 
@@ -1484,10 +1526,48 @@ function openPersonal(id){
       <div class="field"><label>Descripción</label><input id="pm-desc" value="${m?esc(m.desc):''}" placeholder="Ej: Sueldo / Supermercado / Alquiler"></div>
       <div class="g2"><div class="field"><label>Monto</label><input type="number" id="pm-monto" value="${m?m.monto:''}" placeholder="Ej: 50000"></div>
         <div class="field"><label>Moneda</label><select id="pm-mon"><option ${!m||m.moneda==='USD'?'selected':''}>USD</option><option ${m&&m.moneda==='$'?'selected':''}>$</option></select></div></div>
-      <div class="field"><label>Categoría</label><select id="pm-cat">${opt(CAJA_CAT,m?m.cat:'Otro')}</select></div>
+      <div class="field"><label>Categoría</label><select id="pm-cat">${opt(catsPara(yo,m),m?(m.cat||'Otro'):'Otro')}</select>
+        <div class="mover" style="margin-top:7px">
+          <span class="subnav-clr" style="margin:0" onclick="document.getElementById('pm-newcat-wrap').hidden=false;document.getElementById('pm-newcat').focus()">+ nueva categoría</span>
+          <span class="subnav-clr" style="margin:0" onclick="borrarCatPersonal()">borrar la elegida</span>
+        </div>
+        <div id="pm-newcat-wrap" class="catnew" hidden>
+          <input id="pm-newcat" placeholder="Ej: Veterinaria" style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();agregarCatPersonal();}">
+          <button type="button" class="btn sm success" onclick="agregarCatPersonal()">Agregar</button>
+        </div></div>
+      ${botonesMover(m?m.id:'',yo)}
       <div class="modal-foot">${m?`<button class="btn ghost" style="color:var(--red);margin-right:auto" onclick="delPersonal('${m.id}');closeModal()">Eliminar</button>`:''}<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePersonal('${m?m.id:''}')">Guardar</button></div>
     </div>`;
   $('#modalBg').classList.add('open');
+}
+/* Si el movimiento viene de la caja de Pueblo Vivo su categoría puede no estar
+   en la lista personal. La sumamos adelante para no cambiársela sin avisar. */
+function catsPara(yo,m){
+  const cats=catsDe(yo), cur=m?(m.cat||''):'';
+  return (cur && cats.indexOf(cur)<0) ? [cur,...cats] : cats;
+}
+function agregarCatPersonal(){
+  const yo=soyQuien(); if(!yo) return;
+  const inp=$('#pm-newcat'), n=(inp.value||'').trim();
+  if(!n) return;
+  if(catsDe(yo).some(c=>c.toLowerCase()===n.toLowerCase())){ alert('Esa categoría ya existe.'); inp.value=''; return; }
+  db.catsPersonales.push({id:uid(),de:yo,nombre:n});
+  save();
+  const sel=$('#pm-cat'); sel.innerHTML=opt(catsDe(yo),n); sel.value=n;
+  inp.value=''; $('#pm-newcat-wrap').hidden=true;
+}
+function borrarCatPersonal(){
+  const yo=soyQuien(); if(!yo) return;
+  const sel=$('#pm-cat'), n=sel.value;
+  const c=db.catsPersonales.find(x=>x.de===yo&&x.nombre===n);
+  if(!c){ alert('Esa categoría no está en tu lista.'); return; }
+  const usados=db.personales.filter(x=>x.de===yo&&x.cat===n).length;
+  if(!confirm('¿Borrar la categoría «'+n+'»?'+(usados?'\n\nLa están usando '+usados+' movimiento'+(usados===1?'':'s')+'. No se borran: quedan con esa categoría escrita.':''))) return;
+  db.catsPersonales=db.catsPersonales.filter(x=>x.id!==c.id);
+  save();
+  const quedan=catsDe(yo);
+  sel.innerHTML=opt(quedan,quedan[0]||''); sel.value=quedan[0]||'';
 }
 function savePersonal(id){
   const yo=soyQuien(); if(!yo) return;
@@ -1510,6 +1590,7 @@ function openMov(id){
         <div class="field"><label>Moneda</label><select id="m-mon"><option ${!m||m.moneda==='USD'?'selected':''}>USD</option><option ${m&&m.moneda==='$'?'selected':''}>$</option></select></div></div>
       <div class="g2"><div class="field"><label>¿De quién?</label><select id="m-quien">${opt(QUIEN,m?m.quien:'Ambas')}</select><div class="hint">«Ambas» reparte 50/50.</div></div>
         <div class="field"><label>Categoría</label><select id="m-cat">${opt(CAJA_CAT,m?m.cat:'Otro')}</select></div></div>
+      ${botonesMover(m?m.id:'','Pueblo Vivo')}
       <div class="modal-foot">${m?`<button class="btn ghost" style="color:var(--red);margin-right:auto" onclick="delMov('${m.id}');closeModal()">Eliminar</button>`:''}<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="saveMov('${m?m.id:''}')">Guardar</button></div>
     </div>`;
   $('#modalBg').classList.add('open');
