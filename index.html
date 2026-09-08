@@ -548,7 +548,7 @@ const CATS_PERSONAL_INI=['Sen de Campo','Siembra Dicha','Escuela','Casa','Superm
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-07-3';
+const APP_VER='2026-09-08-1';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -1352,7 +1352,10 @@ function repartoTotales(arr){
     else { t.Fran[cur]+=com/2; t.Cande[cur]+=com/2; } });
   return t;
 }
-function dual(o){ const p=[]; if(o.usd)p.push('US$'+nfmt(Math.round(o.usd))); if(o.ars)p.push('$'+nfmt(Math.round(o.ars))); return p.length?p.join(' <small>+</small> '):'—'; }
+function dual(o){ const p=[];
+  const f=(v,s)=>(v<0?'−':'')+s+nfmt(Math.abs(Math.round(v)));   // −US$80, no US$-80
+  if(o.usd)p.push(f(o.usd,'US$')); if(o.ars)p.push(f(o.ars,'$'));
+  return p.length?p.join(' <small>+</small> '):'—'; }
 function renderCierres(){
   const mes=new Date().toISOString().slice(0,7);
   const cMes=db.cierres.filter(x=>(x.fecha||'').slice(0,7)===mes);
@@ -1431,6 +1434,14 @@ function soyQuien(){ try{ const v=localStorage.getItem(SOY_KEY); if(v==='Fran'||
 function setSoy(v){ soyMem=v; try{ localStorage.setItem(SOY_KEY,v); }catch(e){} renderCaja(); }
 function olvidarSoy(){ soyMem=''; try{ localStorage.removeItem(SOY_KEY); }catch(e){} renderCaja(); }
 function personalesDe(q){ return db.personales.filter(x=>x.de===q); }
+/* Cuánto de un movimiento de Pueblo Vivo le toca a cada una. Mismo criterio
+   que cajaTotales(), para que la lista y los totales no se contradigan. */
+function parteDe(it,yo){
+  const v=+it.monto||0;
+  if(it.quien===yo) return v;
+  if(it.quien==='Fran'||it.quien==='Cande') return 0;   // es de la otra
+  return v/2;                                            // «Ambas» va mitad y mitad
+}
 function totalPersonales(items){
   const t={usd:0,ars:0};
   items.forEach(it=>{ const cur=it.moneda==='USD'?'usd':'ars'; t[cur]+=(it.tipo==='Gasto'?-1:1)*(+it.monto||0); });
@@ -1535,20 +1546,44 @@ function renderCajaMia(t){
       </div>
       <div class="reparto-pend"><span>Total tuyo</span><span class="amt" style="color:${(tot.usd<0||tot.ars<0)?'var(--red)':'var(--green)'}">${dual(tot)}</span></div>
     </div>`;
-  $('#fil-caja').innerHTML=['Todos','Ingreso','Gasto'].map(f=>
-    `<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${f==='Todos'?mios.length:mios.filter(i=>i.tipo===f).length}</span></button>`).join('');
-  let list=mios.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  /* La parte que te toca de cada movimiento de Pueblo Vivo entra como una línea
+     más de tu caja. Son derivadas: no se guardan, se calculan al vuelo, así que
+     si cambia el movimiento original tu caja se actualiza sola. */
+  const dePV=cajaMovimientos().map(it=>{
+    const parte=parteDe(it,yo);
+    if(!parte) return null;
+    return {id:it.id, dePV:true, esComision:it.auto, refInt:it.refInt,
+            mitad:!(it.quien==='Fran'||it.quien==='Cande'), original:+it.monto||0,
+            tipo:it.tipo, fecha:it.fecha, moneda:it.moneda, monto:parte, desc:it.desc, cat:it.cat};
+  }).filter(Boolean);
+  let list=dePV.concat(mios.map(x=>({...x,dePV:false})))
+    .sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  $('#fil-caja').innerHTML=['Todos','Ingreso','Gasto'].map(f=>{
+    const n=f==='Todos'?list.length:list.filter(i=>i.tipo===f).length;
+    return `<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${n}</span></button>`;
+  }).join('');
   if(filtroCaja!=='Todos') list=list.filter(i=>i.tipo===filtroCaja);
   $('#caja-lista').innerHTML=list.length?list.map(it=>{
     const sig=it.moneda==='USD'?'US$':'$', ing=it.tipo==='Ingreso', col=ing?'var(--green)':'var(--red)';
+    const plata=`<span class="srow-precio" style="color:${col}">${ing?'+':'−'}${sig}${nfmt(Math.abs(+it.monto||0))}</span>`;
+    if(it.dePV){
+      const acts=it.esComision
+        ? (it.refInt?`<button class="iconbtn" title="Ver el interesado" onclick="openInteresado('${it.refInt}')">${ICO_LAPIZ}</button>`:'')
+        : `<button class="iconbtn" title="Ver en la caja de Pueblo Vivo" onclick="openMov('${it.id}')">${ICO_LAPIZ}</button>`;
+      return `<div class="srow">
+        <div class="srow-main"><div class="srow-tit" style="font-size:14px">${ing?'▲':'▼'} ${esc(it.desc||it.cat||'Movimiento')}</div>
+          <div class="srow-meta"><span class="badge badge-gray">Pueblo Vivo</span> ${fechaLarga(it.fecha)}${it.cat?' · '+esc(it.cat):''}${it.mitad?` · tu mitad de ${sig}${nfmt(it.original)}`:' · te toca entero'}</div></div>
+        <div class="srow-right">${plata}<div class="acts">${acts}</div></div>
+      </div>`;
+    }
     return `<div class="srow">
       <div class="srow-main"><div class="srow-tit" style="font-size:14px">${ing?'▲':'▼'} ${esc(it.desc||it.cat||'Movimiento')}</div>
         <div class="srow-meta">${fechaLarga(it.fecha)}${it.cat?' · '+esc(it.cat):''}</div></div>
-      <div class="srow-right"><span class="srow-precio" style="color:${col}">${ing?'+':'−'}${sig}${nfmt(Math.abs(+it.monto||0))}</span>
+      <div class="srow-right">${plata}
         <div class="acts"><button class="iconbtn" title="Editar" onclick="openPersonal('${it.id}')">${ICO_LAPIZ}</button>
           <button class="iconbtn del" title="Eliminar" onclick="delPersonal('${it.id}')">${ICO_TACHO}</button></div></div>
     </div>`;
-  }).join(''):`<div class="empty">Todavía no cargaste movimientos personales.</div>`;
+  }).join(''):`<div class="empty">Todavía no hay movimientos en tu caja.</div>`;
 }
 function openPersonal(id){
   const yo=soyQuien(); if(!yo) return;
