@@ -4,7 +4,13 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <title>Pueblo Vivo — Gestión</title>
-<meta name="theme-color" content="#1c1917"/>
+<meta name="theme-color" content="#5f6e37"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="icon-192.png"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="Pueblo Vivo"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,500;0,600;1,300&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -542,7 +548,7 @@ const CATS_PERSONAL_INI=['Sen de Campo','Siembra Dicha','Escuela','Casa','Superm
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-07-2';
+const APP_VER='2026-09-07-3';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -2044,6 +2050,8 @@ function renderAll(){
   renderFilProp(); renderPropiedades();
   renderCierres(); renderCaja(); renderNotas(); renderContactos();
 }
+/* Sólo para que Android ofrezca instalarla. El sw.js no cachea nada. */
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 boot().then(()=>{ chequearMapa(); chequearVersion(); });
 </script>
 </body>

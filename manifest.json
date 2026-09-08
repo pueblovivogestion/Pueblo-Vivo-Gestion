@@ -1,0 +1,17 @@
+{
+  "name": "Pueblo Vivo — Gestión",
+  "short_name": "Pueblo Vivo",
+  "description": "Gestión de la inmobiliaria: interesados, propiedades, caja y agenda.",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f1ea",
+  "theme_color": "#5f6e37",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
