@@ -574,7 +574,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-10-3';
+const APP_VER='2026-09-10-4';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -1210,8 +1210,11 @@ function setPropRef(t){ filtroRef=t; renderFilProp(); renderPropiedades(); }
 function setPropCon(t){ filtroCon=t; renderFilProp(); renderPropiedades(); }
 /* ---- Cotización del dólar: los alquileres se guardan en USD y se muestran en pesos ---- */
 const DOLAR=()=>+db.dolar||1550;
+/* Redondeo SIEMPRE para arriba, al mil siguiente: el precio nunca queda por
+   debajo del valor real y además se lee redondo (109.000, no 108.500). */
+const pesosNoche=usd=>Math.ceil((+usd||0)*DOLAR()/1000)*1000;
 function precioTxt(p){
-  if(opDe(p)==='Alquiler' && p.usdNoche) return '$'+nfmt(Math.round(p.usdNoche*DOLAR()))+'/noche';
+  if(opDe(p)==='Alquiler' && p.usdNoche) return '$'+nfmt(pesosNoche(p.usdNoche))+'/noche';
   return p.precio||'—';
 }
 function renderDolar(){
@@ -2045,7 +2048,7 @@ function togglePrecio(){
 function previewPesos(){
   const el=$('#p-pesos'); if(!el) return;
   const u=+($('#p-usd')&&$('#p-usd').value)||0;
-  el.textContent = u ? 'Se muestra como $'+nfmt(Math.round(u*DOLAR()))+'/noche, con el dólar a $'+nfmt(DOLAR())+'.'
+  el.textContent = u ? 'Se muestra como $'+nfmt(pesosNoche(u))+'/noche, con el dólar a $'+nfmt(DOLAR())+'.'
                      : 'Cargá el valor en dólares; los pesos se calculan con la cotización.';
 }
 function savePropiedad(id){
