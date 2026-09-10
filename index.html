@@ -508,6 +508,7 @@ input,select,textarea{font-size:15.5px}
              onkeydown="if(event.key==='Enter'){event.preventDefault();agregarCatNota();}">
       <button class="btn sm success" onclick="agregarCatNota()">Agregar</button>
     </div>
+    <div class="subnav" id="fil-nota-quien"></div>
     <div id="notas-lista"></div>
   </div>
 
@@ -562,7 +563,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-10-1';
+const APP_VER='2026-09-10-2';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -872,7 +873,7 @@ function cuando(d){
 }
 
 const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
-let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta', tabCaja='pv', filtroNota='Todas';
+let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta', tabCaja='pv', filtroNota='Todas', filtroQuien='Todas';
 let filtroRefInt='Todos', filtroBusca='Todos';
 
 function renderNav(){
@@ -1698,7 +1699,29 @@ let editTareaId=null;
 /* Las opciones del filtro se guardan acá y los botones mandan la posición, no
    el texto: así un nombre de categoría con comillas no rompe el onclick. */
 let opsNota=[];
+const QUIEN_NOTA=['Sin asignar','Fran','Cande','Ambas'];
+const OPS_QUIEN=['Todas','Fran','Cande','Ambas','Sin asignar'];
 function catsNotasLista(){ return db.catsNotas.map(c=>c.nombre); }
+/* Al filtrar por Fran también entran las de «Ambas»: son cosas que Fran
+   igual tiene que hacer, así que su lista tiene que mostrarlas. */
+function coincideQuien(t,f){
+  if(f==='Todas') return true;
+  if(f==='Sin asignar') return !t.quien;
+  return t.quien===f || t.quien==='Ambas';
+}
+function coincideCat(t,f){
+  if(f==='Todas') return true;
+  if(f==='Sin categoría') return !t.cat;
+  return t.cat===f;
+}
+/* Los contadores de cada fila se cuentan sobre la lista ya filtrada por la
+   OTRA fila, para que el número diga cuántas vas a ver si tocás ese botón. */
+function notasFiltradas(excepto){
+  return db.tareas.filter(t=>
+    (excepto==='cat'   || coincideCat(t,filtroNota)) &&
+    (excepto==='quien' || coincideQuien(t,filtroQuien)));
+}
+function setFilQuienIdx(i){ filtroQuien=OPS_QUIEN[i]||'Todas'; renderNotas(); }
 function optEsc(arr,sel){ return arr.map(o=>`<option value="${esc(o)}" ${o===sel?'selected':''}>${esc(o)}</option>`).join(''); }
 function setFilNotaIdx(i){ filtroNota=opsNota[i]||'Todas'; renderNotas(); }
 function setTareaCampo(id,campo,valor){
@@ -1725,14 +1748,14 @@ function renderNotas(){
   const cats=catsNotasLista();
   const haySin=db.tareas.some(t=>!t.cat);
   opsNota=['Todas',...cats,...(haySin?['Sin categoría']:[])];
-  const cuenta=v=> v==='Todas'?db.tareas.length
-    : v==='Sin categoría'?db.tareas.filter(t=>!t.cat).length
-    : db.tareas.filter(t=>t.cat===v).length;
+  const baseCat=notasFiltradas('cat'), baseQuien=notasFiltradas('quien');
   const esPropia=cats.indexOf(filtroNota)>=0;
   $('#fil-nota').innerHTML=`<span class="subnav-lbl">Categoría</span>`
-    + opsNota.map((v,i)=>`<button class="subnav-btn ${filtroNota===v?'active':''}" onclick="setFilNotaIdx(${i})">${esc(v)}<span class="c">${cuenta(v)}</span></button>`).join('')
+    + opsNota.map((v,i)=>`<button class="subnav-btn ${filtroNota===v?'active':''}" onclick="setFilNotaIdx(${i})">${esc(v)}<span class="c">${baseCat.filter(t=>coincideCat(t,v)).length}</span></button>`).join('')
     + `<span class="subnav-clr" onclick="document.getElementById('notacat-wrap').hidden=false;document.getElementById('notacat-new').focus()">+ nueva</span>`
     + (esPropia?`<span class="subnav-clr" onclick="borrarCatNota()">borrar esta</span>`:'');
+  $('#fil-nota-quien').innerHTML=`<span class="subnav-lbl">Se encarga</span>`
+    + OPS_QUIEN.map((v,i)=>`<button class="subnav-btn ${filtroQuien===v?'active':''}" onclick="setFilQuienIdx(${i})">${esc(v)}<span class="c">${baseQuien.filter(t=>coincideQuien(t,v)).length}</span></button>`).join('');
 
   const row=t=>{
     const cuerpo = (editTareaId===t.id)
@@ -1752,19 +1775,18 @@ function renderNotas(){
              sumamos igual: mejor mostrarla que decir «Sin categoría» y mentir */
           optEsc(['Sin categoría',...cats,...((t.cat&&cats.indexOf(t.cat)<0)?[t.cat]:[])],t.cat||'Sin categoría')
         }</select>
-        <select title="Quién se encarga" onchange="setTareaCampo('${t.id}','quien',this.value)">${optEsc(['Sin asignar','Fran','Cande'],t.quien||'Sin asignar')}</select>
+        <select title="Quién se encarga" onchange="setTareaCampo('${t.id}','quien',this.value)">${optEsc(QUIEN_NOTA,t.quien||'Sin asignar')}</select>
         <button class="btn sm ${t.hecho?'':'success'}" onclick="toggleTarea('${t.id}')">${t.hecho?'✓ Realizado':'Marcar realizado'}</button>
       </div>
     </div>`;
   };
 
-  let lista=db.tareas;
-  if(filtroNota==='Sin categoría') lista=lista.filter(t=>!t.cat);
-  else if(filtroNota!=='Todas') lista=lista.filter(t=>t.cat===filtroNota);
+  const lista=notasFiltradas();
+  const sinFiltros = filtroNota==='Todas' && filtroQuien==='Todas';
   const pend=lista.filter(t=>!t.hecho), done=lista.filter(t=>t.hecho);
   let html='';
   html += pend.length ? pend.map(row).join('')
-    : (done.length?'':`<div class="empty">${filtroNota==='Todas'?'No hay tareas. Escribí una arriba 👆':'No hay tareas en esta categoría.'}</div>`);
+    : (done.length?'':`<div class="empty">${sinFiltros?'No hay tareas. Escribí una arriba 👆':'No hay tareas con estos filtros.'}</div>`);
   if(done.length) html += `<div class="notas-sub">✓ Realizadas (${done.length})</div>`+done.map(row).join('');
   $('#notas-lista').innerHTML=html;
   if(editTareaId){ const el=document.getElementById('ed-'+editTareaId); if(el){ el.focus(); el.select(); } }
@@ -1773,9 +1795,10 @@ function editarTarea(id){ editTareaId=id; renderNotas(); }
 function guardarTarea(id){ const el=document.getElementById('ed-'+id); const t=db.tareas.find(x=>x.id===id); if(el&&t){ const v=el.value.trim(); if(v)t.txt=v; } editTareaId=null; save(); renderNotas(); }
 function addTarea(){
   const el=$('#tarea-input'); const t=el.value.trim(); if(!t)return;
-  // si estás mirando una categoría, la nota nace ahí
+  // si estás mirando una categoría o la lista de alguien, la nota nace ahí
   const cat=catsNotasLista().indexOf(filtroNota)>=0?filtroNota:'';
-  db.tareas.unshift({id:uid(),txt:t,hecho:false,cat,quien:''});
+  const quien=['Fran','Cande','Ambas'].indexOf(filtroQuien)>=0?filtroQuien:'';
+  db.tareas.unshift({id:uid(),txt:t,hecho:false,cat,quien});
   el.value=''; el.focus();
   save(); renderNotas();
 }
