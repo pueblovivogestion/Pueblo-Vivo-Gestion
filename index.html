@@ -335,7 +335,13 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .fab svg{width:24px;height:24px}.fab:hover{background:#333}
 
 /* ── TAREAS / NOTAS ── */
-.tarea{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 13px;box-shadow:var(--sh);margin-bottom:8px}
+.tarea{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 13px;box-shadow:var(--sh);margin-bottom:8px}
+.tarea.hecha{opacity:.75}
+.tarea-top{display:flex;align-items:flex-start;gap:10px}
+.tarea-meta{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:10px;padding-top:9px;border-top:1px dashed var(--border)}
+.tarea-meta select{font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:6px;
+  background:var(--bg);color:var(--ink);max-width:47%}
+@media(max-width:640px){ .tarea-meta select{font-size:13px} }
 .tarea-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--border2);background:var(--bg);flex:0 0 auto;display:grid;place-items:center;color:#fff;font-size:15px;line-height:1;cursor:pointer;transition:all .12s}
 .tarea.hecha .tarea-check{background:var(--green);border-color:var(--green)}
 .tarea-txt{flex:1;font-size:14.5px;line-height:1.4;word-break:break-word}
@@ -496,6 +502,12 @@ input,select,textarea{font-size:15.5px}
         <button class="btn success" onclick="addTarea()">Agregar</button>
       </div>
     </div>
+    <div class="subnav" id="fil-nota"></div>
+    <div id="notacat-wrap" class="catnew" hidden style="margin:-6px 0 14px">
+      <input id="notacat-new" placeholder="Ej: Mantenimiento" style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--ink);font-size:13px"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();agregarCatNota();}">
+      <button class="btn sm success" onclick="agregarCatNota()">Agregar</button>
+    </div>
     <div id="notas-lista"></div>
   </div>
 
@@ -545,10 +557,12 @@ const REFS=['Sin asignar','Fran','Cande'];
 const PROP_TIPOS=['Casa','Lote','Inversión','Otro'];
 /* Con las que arranca cada caja personal. Después cada una agrega las suyas. */
 const CATS_PERSONAL_INI=['Sen de Campo','Siembra Dicha','Escuela','Casa','Supermercado','Salida','Fútbol','Salud','Hijos','Otro'];
+/* Con las que arrancan las notas. Después se agregan las que quieran. */
+const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Protocolos'];
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-08-1';
+const APP_VER='2026-09-10-1';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -629,7 +643,7 @@ const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos'
 let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[],tareas:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales','catsPersonales'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales','catsPersonales','catsNotas'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
 function applyMigrations(){
   const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
   db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
@@ -651,6 +665,10 @@ function applyMigrations(){
   if(!db.catsSeed){
     ['Fran','Cande'].forEach(q=>CATS_PERSONAL_INI.forEach(n=>db.catsPersonales.push({id:uid()+q+n.length,de:q,nombre:n})));
     db.catsSeed=true;
+  }
+  if(!db.catsNotasSeed){
+    CATS_NOTAS_INI.forEach(n=>db.catsNotas.push({id:uid()+n.length,nombre:n}));
+    db.catsNotasSeed=true;
   }
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -854,7 +872,7 @@ function cuando(d){
 }
 
 const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
-let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta', tabCaja='pv';
+let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta', tabCaja='pv', filtroNota='Todas';
 let filtroRefInt='Todos', filtroBusca='Todos';
 
 function renderNav(){
@@ -1677,22 +1695,77 @@ function delMov(id){ if(!confirm('¿Eliminar este movimiento?'))return; db.movim
 
 /* ============ Notas / tareas ============ */
 let editTareaId=null;
+/* Las opciones del filtro se guardan acá y los botones mandan la posición, no
+   el texto: así un nombre de categoría con comillas no rompe el onclick. */
+let opsNota=[];
+function catsNotasLista(){ return db.catsNotas.map(c=>c.nombre); }
+function optEsc(arr,sel){ return arr.map(o=>`<option value="${esc(o)}" ${o===sel?'selected':''}>${esc(o)}</option>`).join(''); }
+function setFilNotaIdx(i){ filtroNota=opsNota[i]||'Todas'; renderNotas(); }
+function setTareaCampo(id,campo,valor){
+  const t=db.tareas.find(x=>x.id===id); if(!t)return;
+  t[campo]=(valor==='Sin categoría'||valor==='Sin asignar')?'':valor;
+  save(); renderNotas();
+}
+function agregarCatNota(){
+  const inp=$('#notacat-new'), n=(inp.value||'').trim(); if(!n) return;
+  if(catsNotasLista().some(c=>c.toLowerCase()===n.toLowerCase())){ alert('Esa categoría ya existe.'); inp.value=''; return; }
+  db.catsNotas.push({id:uid(),nombre:n});
+  inp.value=''; $('#notacat-wrap').hidden=true; filtroNota=n;
+  save(); renderNotas();
+}
+function borrarCatNota(){
+  const n=filtroNota, c=db.catsNotas.find(x=>x.nombre===n); if(!c) return;
+  const usan=db.tareas.filter(t=>t.cat===n).length;
+  if(!confirm('¿Borrar la categoría «'+n+'»?'+(usan?'\n\nHay '+usan+' nota'+(usan===1?'':'s')+' con esa categoría. No se borran: quedan sin categoría.':''))) return;
+  db.catsNotas=db.catsNotas.filter(x=>x.id!==c.id);
+  db.tareas.forEach(t=>{ if(t.cat===n) t.cat=''; });
+  filtroNota='Todas'; save(); renderNotas();
+}
 function renderNotas(){
+  const cats=catsNotasLista();
+  const haySin=db.tareas.some(t=>!t.cat);
+  opsNota=['Todas',...cats,...(haySin?['Sin categoría']:[])];
+  const cuenta=v=> v==='Todas'?db.tareas.length
+    : v==='Sin categoría'?db.tareas.filter(t=>!t.cat).length
+    : db.tareas.filter(t=>t.cat===v).length;
+  const esPropia=cats.indexOf(filtroNota)>=0;
+  $('#fil-nota').innerHTML=`<span class="subnav-lbl">Categoría</span>`
+    + opsNota.map((v,i)=>`<button class="subnav-btn ${filtroNota===v?'active':''}" onclick="setFilNotaIdx(${i})">${esc(v)}<span class="c">${cuenta(v)}</span></button>`).join('')
+    + `<span class="subnav-clr" onclick="document.getElementById('notacat-wrap').hidden=false;document.getElementById('notacat-new').focus()">+ nueva</span>`
+    + (esPropia?`<span class="subnav-clr" onclick="borrarCatNota()">borrar esta</span>`:'');
+
   const row=t=>{
     const cuerpo = (editTareaId===t.id)
       ? `<input class="tarea-txt tarea-edit" id="ed-${t.id}" value="${esc(t.txt)}" onkeydown="if(event.key==='Enter')guardarTarea('${t.id}');if(event.key==='Escape'){editTareaId=null;renderNotas();}" onblur="guardarTarea('${t.id}')">`
       : `<span class="tarea-txt" onclick="editarTarea('${t.id}')" title="Tocá para editar">${esc(t.txt)}</span>`;
     return `<div class="tarea ${t.hecho?'hecha':''}">
-      <button class="tarea-check" onclick="toggleTarea('${t.id}')" title="${t.hecho?'Marcar sin hacer':'Marcar hecha'}">${t.hecho?'✓':''}</button>
-      ${cuerpo}
-      <button class="iconbtn" onclick="editarTarea('${t.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
-      <button class="iconbtn del" onclick="delTarea('${t.id}')" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+      <div class="tarea-top">
+        ${cuerpo}
+        <div class="acts">
+          <button class="iconbtn" onclick="editarTarea('${t.id}')" title="Editar">${ICO_LAPIZ}</button>
+          <button class="iconbtn del" onclick="delTarea('${t.id}')" title="Eliminar">${ICO_TACHO}</button>
+        </div>
+      </div>
+      <div class="tarea-meta">
+        <select title="Categoría" onchange="setTareaCampo('${t.id}','cat',this.value)">${
+          /* si la nota quedó con una categoría que ya no está en la lista, la
+             sumamos igual: mejor mostrarla que decir «Sin categoría» y mentir */
+          optEsc(['Sin categoría',...cats,...((t.cat&&cats.indexOf(t.cat)<0)?[t.cat]:[])],t.cat||'Sin categoría')
+        }</select>
+        <select title="Quién se encarga" onchange="setTareaCampo('${t.id}','quien',this.value)">${optEsc(['Sin asignar','Fran','Cande'],t.quien||'Sin asignar')}</select>
+        <button class="btn sm ${t.hecho?'':'success'}" onclick="toggleTarea('${t.id}')">${t.hecho?'✓ Realizado':'Marcar realizado'}</button>
+      </div>
     </div>`;
   };
-  const pend=db.tareas.filter(t=>!t.hecho), done=db.tareas.filter(t=>t.hecho);
+
+  let lista=db.tareas;
+  if(filtroNota==='Sin categoría') lista=lista.filter(t=>!t.cat);
+  else if(filtroNota!=='Todas') lista=lista.filter(t=>t.cat===filtroNota);
+  const pend=lista.filter(t=>!t.hecho), done=lista.filter(t=>t.hecho);
   let html='';
-  html += pend.length ? pend.map(row).join('') : (done.length?'':`<div class="empty">No hay tareas. Escribí una arriba 👆</div>`);
-  if(done.length) html += `<div class="notas-sub">✓ Hechas (${done.length})</div>`+done.map(row).join('');
+  html += pend.length ? pend.map(row).join('')
+    : (done.length?'':`<div class="empty">${filtroNota==='Todas'?'No hay tareas. Escribí una arriba 👆':'No hay tareas en esta categoría.'}</div>`);
+  if(done.length) html += `<div class="notas-sub">✓ Realizadas (${done.length})</div>`+done.map(row).join('');
   $('#notas-lista').innerHTML=html;
   if(editTareaId){ const el=document.getElementById('ed-'+editTareaId); if(el){ el.focus(); el.select(); } }
 }
@@ -1700,7 +1773,9 @@ function editarTarea(id){ editTareaId=id; renderNotas(); }
 function guardarTarea(id){ const el=document.getElementById('ed-'+id); const t=db.tareas.find(x=>x.id===id); if(el&&t){ const v=el.value.trim(); if(v)t.txt=v; } editTareaId=null; save(); renderNotas(); }
 function addTarea(){
   const el=$('#tarea-input'); const t=el.value.trim(); if(!t)return;
-  db.tareas.unshift({id:uid(),txt:t,hecho:false});
+  // si estás mirando una categoría, la nota nace ahí
+  const cat=catsNotasLista().indexOf(filtroNota)>=0?filtroNota:'';
+  db.tareas.unshift({id:uid(),txt:t,hecho:false,cat,quien:''});
   el.value=''; el.focus();
   save(); renderNotas();
 }
