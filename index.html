@@ -264,6 +264,16 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .srow-notas{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5}
 .srow-right{text-align:right;flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
 .srow-precio{font-family:var(--serif);font-size:15px;font-weight:500;color:var(--green)}
+.srow-usd{font-size:10.5px;color:var(--ink3);margin-top:-5px}
+/* Cotización del dólar, arriba de los alquileres */
+.dolar-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);padding:9px 12px;margin:2px 0 10px}
+.dolar-row label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3)}
+.dolar-row .dolar-sign{font-family:var(--serif);font-size:15px;color:var(--green);margin-left:2px}
+.dolar-row input{width:88px;font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--bg2);
+  border:1px solid var(--border);border-radius:7px;padding:5px 8px;text-align:right}
+.dolar-row input:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+.dolar-row .dolar-hint{font-size:11.5px;color:var(--ink3);flex:1 1 190px;line-height:1.3}
 .grp-hdr{display:flex;align-items:center;gap:9px;margin:14px 0 2px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .grp-hdr:first-child{margin-top:0}
 .grp-cnt{font-family:var(--mono);font-size:11px;color:var(--ink3)}
@@ -465,6 +475,7 @@ input,select,textarea{font-size:15.5px}
       <button class="btn primary" onclick="openPropiedad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Nueva</button>
     </div>
     <div class="optabs" id="op-prop"></div>
+    <div id="dolar-box"></div>
     <div class="subnav" id="fil-prop"></div>
     <div class="subnav" id="fil-prop-ref"></div>
     <div class="subnav" id="fil-prop-con"></div>
@@ -563,7 +574,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-10-2';
+const APP_VER='2026-09-10-3';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -654,6 +665,16 @@ function applyMigrations(){
   /* Antes "Alquiler" era un valor del campo Tipo, mezclado con Lote y Casa.
      Ahora la operación es un campo aparte; el Tipo queda para qué es. */
   db.propiedades.forEach(p=>{ if(!p.operacion) p.operacion = p.tipo==='Alquiler' ? 'Alquiler' : 'Venta'; });
+  /* Los alquileres se cotizan en dólares por noche, pero se cobran en pesos.
+     Guardo el valor en dólares aparte (usdNoche) y los pesos se calculan con la
+     cotización de db.dolar, así el día que se mueve el dólar se cambia un número. */
+  if(!(+db.dolar)) db.dolar=1550;
+  db.propiedades.forEach(p=>{
+    if(p.operacion==='Alquiler' && p.usdNoche===undefined){
+      const n=parseInt(String(p.precio||'').replace(/\D/g,''),10);
+      if(n){ p.usdNoche=n; p.precio='USD '+n+'/noche'; }
+    }
+  });
   /* Los 20 alquileres arrastraban 'Alquiler' como Tipo, que ya no es un tipo.
      Son todas casas (confirmado). Va DESPUÉS de la línea de arriba, que
      todavía necesita leer el tipo viejo. */
@@ -1178,6 +1199,7 @@ function renderFilProp(){
   const tipos=[...new Set(propsDeOp().map(p=>p.tipo).filter(Boolean))].sort();
   if(tipos.length<2){ $('#fil-prop').innerHTML=''; if(filtroProp!=='Todos') filtroProp='Todos'; }
   else filaFiltro('#fil-prop','Tipo',['Todos',...tipos],filtroProp,'setProp',p=>p.tipo,'tipo');
+  renderDolar();
   filaFiltro('#fil-prop-ref','Referente',['Todos','Fran','Cande','Sin asignar'],filtroRef,'setPropRef',refDe,'ref');
   filaFiltro('#fil-prop-con','Contrato',['Todos','Firmado','Sin firmar'],filtroCon,'setPropCon',conDe,'con',
     hayFiltros()?`<span class="subnav-clr" onclick="limpiarFiltrosProp()">limpiar filtros</span>`:'');
@@ -1186,6 +1208,27 @@ function setOpProp(o){ opProp=o; filtroProp='Todos'; filtroRef='Todos'; filtroCo
 function setProp(t){ filtroProp=t; renderFilProp(); renderPropiedades(); }
 function setPropRef(t){ filtroRef=t; renderFilProp(); renderPropiedades(); }
 function setPropCon(t){ filtroCon=t; renderFilProp(); renderPropiedades(); }
+/* ---- Cotización del dólar: los alquileres se guardan en USD y se muestran en pesos ---- */
+const DOLAR=()=>+db.dolar||1550;
+function precioTxt(p){
+  if(opDe(p)==='Alquiler' && p.usdNoche) return '$'+nfmt(Math.round(p.usdNoche*DOLAR()))+'/noche';
+  return p.precio||'—';
+}
+function renderDolar(){
+  const el=$('#dolar-box'); if(!el) return;
+  if(opProp!=='Alquiler'){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="dolar-row">
+    <label for="dolar-in">Dólar hoy</label>
+    <span class="dolar-sign">$</span>
+    <input id="dolar-in" type="number" inputmode="numeric" min="1" value="${DOLAR()}" onchange="setDolar(this.value)">
+    <span class="dolar-hint">Los precios de abajo se calculan con este valor. Cambialo y se actualizan todos.</span>
+  </div>`;
+}
+function setDolar(v){
+  const n=Math.round(+v)||0;
+  if(n<1){ alert('Poné una cotización válida, mayor a cero.'); renderDolar(); return; }
+  db.dolar=n; save(); renderDolar(); renderPropiedades();
+}
 function rowProp(p){
   const contrato=p.contrato||'Sin firmar';
   const ref=p.referente
@@ -1206,7 +1249,8 @@ function rowProp(p){
       <div class="srow-main"><div class="srow-tit">${esc(p.titulo)}</div><div class="srow-meta">${esc(p.tipo)}${p.zona?' · '+esc(p.zona):''}</div>
         <div class="tags" style="margin:8px 0 0">${ref}${con}${venc}${prot}</div>
         ${p.notas?`<div class="srow-notas">${esc(p.notas)}</div>`:''}</div>
-      <div class="srow-right"><span class="srow-precio">${esc(p.precio||'—')}</span>
+      <div class="srow-right"><span class="srow-precio">${esc(precioTxt(p))}</span>
+        ${opDe(p)==='Alquiler'&&p.usdNoche?`<span class="srow-usd">USD ${p.usdNoche}/noche</span>`:''}
         <div class="acts"><button class="iconbtn del" title="Eliminar" onclick="event.stopPropagation();delProp('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>
       </div>
     </div>`;
@@ -1970,12 +2014,13 @@ function openPropiedad(id){
     <div class="modal-hdr"><div class="modal-title">${p?'Editar propiedad':'Nueva propiedad'}</div><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="field"><label>Título</label><input id="p-tit" value="${p?esc(p.titulo):''}" placeholder="Ej: Lote 14 — sector arboleda"></div>
-      <div class="g2"><div class="field"><label>Operación</label><select id="p-op">${opt(['Venta','Alquiler'],p?opDe(p):opProp)}</select>
+      <div class="g2"><div class="field"><label>Operación</label><select id="p-op" onchange="togglePrecio()">${opt(['Venta','Alquiler'],p?opDe(p):opProp)}</select>
           <div class="hint">Define en qué solapa aparece.</div></div>
         <div class="field"><label>Estado</label><select id="p-estado">${opt(PROP_ESTADOS,p?p.estado:'Disponible')}</select></div></div>
       <div class="field"><label>Tipo</label><select id="p-tipo">${opt(PROP_TIPOS,p?p.tipo:'Lote')}</select></div>
       <div class="g2"><div class="field"><label>Zona</label><input id="p-zona" value="${p?esc(p.zona):''}"></div>
-        <div class="field"><label>Precio</label><input id="p-precio" value="${p?esc(p.precio):''}" placeholder="Ej: USD 18.000"></div></div>
+        <div class="field" id="box-venta"><label>Precio</label><input id="p-precio" value="${p?esc(p.precio):''}" placeholder="Ej: USD 18.000"></div>
+        <div class="field" id="box-alq"><label>Precio por noche (USD)</label><input id="p-usd" type="number" min="0" step="1" value="${p&&p.usdNoche?p.usdNoche:''}" placeholder="Ej: 70" oninput="previewPesos()"><div class="hint" id="p-pesos"></div></div></div>
       <div class="field"><label>Referente</label><select id="p-ref">
           <option value="" ${ref?'':'selected'}>Sin asignar</option>
           <option value="Fran" ${ref==='Fran'?'selected':''}>Fran</option>
@@ -1987,11 +2032,28 @@ function openPropiedad(id){
       <div class="field"><label>Notas</label><textarea id="p-notas" style="min-height:130px" placeholder="Lo que quieras anotar de esta propiedad: cómo está, qué pidió el dueño, quién la mostró, qué falta…">${p?esc(p.notas):''}</textarea></div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePropiedad('${p?p.id:''}')">Guardar</button></div>
     </div>`;
-  $('#modalBg').classList.add('open');
+  togglePrecio(); $('#modalBg').classList.add('open');
+}
+/* En alquiler el precio se carga en dólares por noche; en venta sigue siendo texto libre */
+function togglePrecio(){
+  const alq=$('#p-op') && $('#p-op').value==='Alquiler';
+  const bv=$('#box-venta'), ba=$('#box-alq');
+  if(bv) bv.style.display=alq?'none':'';
+  if(ba) ba.style.display=alq?'':'none';
+  previewPesos();
+}
+function previewPesos(){
+  const el=$('#p-pesos'); if(!el) return;
+  const u=+($('#p-usd')&&$('#p-usd').value)||0;
+  el.textContent = u ? 'Se muestra como $'+nfmt(Math.round(u*DOLAR()))+'/noche, con el dólar a $'+nfmt(DOLAR())+'.'
+                     : 'Cargá el valor en dólares; los pesos se calculan con la cotización.';
 }
 function savePropiedad(id){
   const t=$('#p-tit').value.trim(); if(!t){alert('Poné un título');return;}
-  const o={titulo:t,operacion:$('#p-op').value,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,contrato:$('#p-contrato').value,vencimiento:$('#p-venc').value,notas:$('#p-notas').value.trim()};
+  const op=$('#p-op').value;
+  const o={titulo:t,operacion:op,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,contrato:$('#p-contrato').value,vencimiento:$('#p-venc').value,notas:$('#p-notas').value.trim()};
+  if(op==='Alquiler'){ const u=Math.round(+$('#p-usd').value)||0; o.usdNoche=u||undefined; o.precio=u?('USD '+u+'/noche'):''; }
+  else o.usdNoche=undefined;
   if(id) Object.assign(db.propiedades.find(x=>x.id===id),o); else {o.id=uid();db.propiedades.unshift(o);}
   if(o.operacion!==opProp) setOpProp(o.operacion);   // si cambió de operación, mostramos la solapa donde quedó
   save(); closeModal(); renderPropiedades(); renderFilProp(); renderNav(); renderResumen(); renderAgenda();
