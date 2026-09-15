@@ -122,6 +122,9 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 #update-bar span{flex:1}
 .upd-x{border:0;background:none;color:rgba(255,255,255,.6);font-size:15px;cursor:pointer;padding:0 2px}
 .upd-x:hover{color:#fff}
+.cat-total{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;margin:-4px 0 10px;
+  border-radius:8px;background:var(--green3);font-size:12.5px;color:var(--ink2)}
+.cat-total b{font-family:var(--serif);font-size:16px;font-weight:500;white-space:nowrap}
 .mover{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .catnew{display:flex;gap:6px;margin-top:7px}
 .catnew[hidden]{display:none}
@@ -501,6 +504,8 @@ input,select,textarea{font-size:15.5px}
     <div class="optabs" id="op-caja"></div>
     <div id="caja-resumen"></div>
     <div class="subnav" id="fil-caja"></div>
+    <div class="subnav" id="fil-caja-cat"></div>
+    <div id="caja-subtotal"></div>
     <div class="simple" id="caja-lista"></div>
   </div>
 
@@ -574,7 +579,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-10-4';
+const APP_VER='2026-09-15-1';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -1485,6 +1490,40 @@ function cajaTotales(items){
   return t;
 }
 function setFilCaja(k){ filtroCaja=k; renderCaja(); }
+/* ---- Filtros de la caja: tipo y categoría ----
+   Sirve igual para la solapa de Pueblo Vivo y para «Mi caja». Las categorías
+   se arman con las que realmente aparecen en la lista de esa solapa. Las
+   opciones se pasan por posición para que un nombre con comillas no rompa. */
+let filtroCatCaja='Todas', opsCatCaja=[];
+const catDeMov=x=>x.cat||'Sin categoría';
+function setFilCatCajaIdx(i){ filtroCatCaja=opsCatCaja[i]||'Todas'; renderCaja(); }
+function filtrosCaja(items){
+  const cats=[...new Set(items.map(catDeMov))].sort((a,b)=>a.localeCompare(b,'es'));
+  if(filtroCatCaja!=='Todas' && cats.indexOf(filtroCatCaja)<0) filtroCatCaja='Todas';
+  const porTipo=x=>filtroCaja==='Todos'||x.tipo===filtroCaja;
+  const porCat=x=>filtroCatCaja==='Todas'||catDeMov(x)===filtroCatCaja;
+  // cada fila cuenta sobre lo ya filtrado por la otra
+  const baseTipo=items.filter(porCat), baseCat=items.filter(porTipo);
+  $('#fil-caja').innerHTML=`<span class="subnav-lbl">Tipo</span>`+['Todos','Ingreso','Gasto'].map(f=>{
+    const n=f==='Todos'?baseTipo.length:baseTipo.filter(x=>x.tipo===f).length;
+    return `<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${n}</span></button>`;
+  }).join('');
+  opsCatCaja=['Todas',...cats];
+  $('#fil-caja-cat').innerHTML = cats.length<2 ? '' : `<span class="subnav-lbl">Categoría</span>`+opsCatCaja.map((c,i)=>{
+    const n=c==='Todas'?baseCat.length:baseCat.filter(x=>catDeMov(x)===c).length;
+    return `<button class="subnav-btn ${filtroCatCaja===c?'active':''}" onclick="setFilCatCajaIdx(${i})">${esc(c)}<span class="c">${n}</span></button>`;
+  }).join('');
+  const list=items.filter(x=>porTipo(x)&&porCat(x));
+  // con algún filtro puesto, mostramos cuánto suma lo que quedó a la vista
+  if(filtroCaja==='Todos' && filtroCatCaja==='Todas'){ $('#caja-subtotal').innerHTML=''; }
+  else {
+    const t={usd:0,ars:0};
+    list.forEach(x=>{ t[x.moneda==='USD'?'usd':'ars']+=(x.tipo==='Gasto'?-1:1)*(+x.monto||0); });
+    const nombre=[filtroCatCaja!=='Todas'?filtroCatCaja:'', filtroCaja!=='Todos'?filtroCaja+'s':''].filter(Boolean).join(' · ');
+    $('#caja-subtotal').innerHTML=`<div class="cat-total"><span>${esc(nombre)} · ${list.length} movimiento${list.length===1?'':'s'}</span><b style="color:${(t.usd<0||t.ars<0)?'var(--red)':'var(--green)'}">${dual(t)}</b></div>`;
+  }
+  return list;
+}
 
 /* ---- Caja personal ----
    Quién usa ESTE teléfono se guarda solo acá, en el navegador: no viaja a la
@@ -1543,7 +1582,7 @@ function moverA(id,destino){
   else db.personales.unshift({...base, de:destino});
   save(); closeModal(); renderCaja();
 }
-function setTabCaja(k){ tabCaja=k; filtroCaja='Todos'; renderCaja(); }
+function setTabCaja(k){ tabCaja=k; filtroCaja='Todos'; filtroCatCaja='Todas'; renderCaja(); }
 function nuevoEnCaja(){ if(tabCaja==='mia'){ if(!soyQuien()){ alert('Primero decinos quién sos en esta pantalla.'); return; } openPersonal(); } else openMov(); }
 
 function renderCaja(){
@@ -1564,9 +1603,7 @@ function renderCaja(){
       </div>
       <div class="reparto-pend"><span>Total en caja</span><span class="amt" style="color:${(t.total.usd<0||t.total.ars<0)?'var(--red)':'var(--green)'}">${dual(t.total)}</span></div>
     </div>`;
-  const filtros=['Todos','Ingreso','Gasto'];
-  $('#fil-caja').innerHTML=filtros.map(f=>`<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${f==='Todos'?items.length:items.filter(i=>i.tipo===f).length}</span></button>`).join('');
-  let list=items; if(filtroCaja!=='Todos') list=items.filter(i=>i.tipo===filtroCaja);
+  const list=filtrosCaja(items);
   $('#caja-lista').innerHTML=list.length?list.map(it=>{
     const sig=it.moneda==='USD'?'US$':'$', ing=it.tipo==='Ingreso', col=ing?'var(--green)':'var(--red)';
     const acts= it.auto
@@ -1593,7 +1630,7 @@ function renderCajaMia(t){
           <button class="btn success" style="flex:1" onclick="setSoy('Cande')">Soy Cande</button>
         </div>
       </div>`;
-    $('#fil-caja').innerHTML=''; $('#caja-lista').innerHTML='';
+    $('#fil-caja').innerHTML=''; $('#fil-caja-cat').innerHTML=''; $('#caja-subtotal').innerHTML=''; $('#caja-lista').innerHTML='';
     return;
   }
   $('#caja-sub').textContent='Tu parte de Pueblo Vivo más lo tuyo personal';
@@ -1624,11 +1661,7 @@ function renderCajaMia(t){
   }).filter(Boolean);
   let list=dePV.concat(mios.map(x=>({...x,dePV:false})))
     .sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
-  $('#fil-caja').innerHTML=['Todos','Ingreso','Gasto'].map(f=>{
-    const n=f==='Todos'?list.length:list.filter(i=>i.tipo===f).length;
-    return `<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${n}</span></button>`;
-  }).join('');
-  if(filtroCaja!=='Todos') list=list.filter(i=>i.tipo===filtroCaja);
+  list=filtrosCaja(list);
   $('#caja-lista').innerHTML=list.length?list.map(it=>{
     const sig=it.moneda==='USD'?'US$':'$', ing=it.tipo==='Ingreso', col=ing?'var(--green)':'var(--red)';
     const plata=`<span class="srow-precio" style="color:${col}">${ing?'+':'−'}${sig}${nfmt(Math.abs(+it.monto||0))}</span>`;
