@@ -579,7 +579,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-15-1';
+const APP_VER='2026-09-23-1';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -1239,8 +1239,8 @@ function setDolar(v){
 }
 /* Abre WhatsApp con el video de la propiedad listo para mandar; el contacto se elige ahí */
 function mandarVideo(id){
-  const p=db.propiedades.find(x=>x.id===id); if(!p||!p.video) return;
-  window.open('https://wa.me/?text='+encodeURIComponent(p.titulo+'\n'+p.video),'_blank');
+  const p=db.propiedades.find(x=>x.id===id), v=p&&videoDe(p); if(!v) return;
+  window.open('https://wa.me/?text='+encodeURIComponent(p.titulo+'\n'+v),'_blank');
 }
 function rowProp(p){
   const contrato=p.contrato||'Sin firmar';
@@ -1258,7 +1258,7 @@ function rowProp(p){
   const act=protEtapa(p), hechos=protHechos(p), totP=protTotal();
   const prot=`<span class="badge badge-${act?'gray':'green'}" style="cursor:pointer" title="Abrir el protocolo"
       onclick="event.stopPropagation();openProtocolo('${p.id}')">📋 ${act?`${act.n}. ${esc(act.e.corto)}`:'Protocolo completo'} · ${hechos}/${totP}</span>`;
-  const vid=p.video?`<span class="badge badge-green" style="cursor:pointer" title="Mandar el video por WhatsApp"
+  const vid=videoDe(p)?`<span class="badge badge-green" style="cursor:pointer" title="Mandar el video por WhatsApp"
       onclick="event.stopPropagation();mandarVideo('${p.id}')">🎬 Mandar video</span>`:'';
   return `<div class="srow" style="cursor:pointer" onclick="openPropiedad('${p.id}')">
       <div class="srow-main"><div class="srow-tit">${esc(p.titulo)}</div><div class="srow-meta">${esc(p.tipo)}${p.zona?' · '+esc(p.zona):''}</div>
@@ -2073,7 +2073,7 @@ function openPropiedad(id){
         <div class="field"><label>Vencimiento del contrato</label><input type="month" id="p-venc" value="${p?esc(p.vencimiento||''):''}">
           <div class="hint">Mes y año. Avisamos ${AVISO_VENC} días antes en Inicio y en el calendario.</div></div></div>
       <div class="field"><label>Video (link de Instagram)</label><input id="p-video" value="${p?esc(p.video||''):''}" placeholder="https://www.instagram.com/reel/…">
-        <div class="hint">Pegá el link del reel. En la tarjeta aparece el botón para mandarlo por WhatsApp.</div></div>
+        <div class="hint">${p&&videoPlanilla(p)?'Ya viene de la planilla. Pegá otro acá solo si querés mandar uno distinto.':'Lo mejor es cargarlo en la planilla del mapa; si lo pegás acá, se usa solo en el CRM.'}</div></div>
       <div class="field"><label>Notas</label><textarea id="p-notas" style="min-height:130px" placeholder="Lo que quieras anotar de esta propiedad: cómo está, qué pidió el dueño, quién la mostró, qué falta…">${p?esc(p.notas):''}</textarea></div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePropiedad('${p?p.id:''}')">Guardar</button></div>
     </div>`;
@@ -2292,7 +2292,45 @@ function renderAll(){
 }
 /* Sólo para que Android ofrezca instalarla. El sw.js no cachea nada. */
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
-boot().then(()=>{ chequearMapa(); chequearVersion(); });
+
+/* ============ Videos de Instagram: salen de la planilla del mapa ============
+   El link se carga una sola vez, en la planilla (fila "DRIVE CON VIDEO" de En venta,
+   o "Video Instagram" en Alquiler). Acá se engancha a cada propiedad por el número
+   de lote del título ("Casa Kurri · lote 35"). Si en la ficha se pegó un link a mano,
+   manda ese. Lo leído NO se guarda en la base: se vuelve a leer cada vez que se abre. */
+const PLANILLA_CSV='https://docs.google.com/spreadsheets/d/17yWE-8ZddG2gUA3L8kWKvGNHoFQikSiHMoCarb_MmUo/export?format=csv&gid=';
+let videosPlanilla={venta:{},alq:{}};
+/* CSV con comillas: las celdas de precios traen comas adentro ("$90,000.00") */
+function csvFilas(t){ const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<t.length;i++){ const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"') q=true; else if(c===','){row.push(cur);cur='';} else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';} else if(c!=='\r') cur+=c; }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);} return rows; }
+async function leerVideos(){
+  try{
+    const [tv,ta]=await Promise.all(['67607999','765860150'].map(g=>fetch(PLANILLA_CSV+g,{cache:'no-store'}).then(r=>r.ok?r.text():'')));
+    const out={venta:{},alq:{}};
+    const esVideo=s=>/video|instagram|reel|youtu/i.test(s||'');
+    const link=s=>/^https?:\/\//i.test((s||'').trim())?s.trim():'';
+    const nro=s=>parseInt((s||'').replace(/\D/g,''),10)||0;
+    // En venta: una columna por propiedad, el nombre de la fila en la columna A
+    const V=csvFilas(tv), vl=V.find(r=>/de lote/i.test(r[0]||'')), vv=V.find(r=>esVideo(r[0]));
+    if(vl&&vv) vl.forEach((x,j)=>{ const n=nro(x), u=link(vv[j]); if(j&&n&&u&&!out.venta[n]) out.venta[n]=u; });
+    // Alquiler: la pregunta en la columna B, el nombre de cada casa en la fila 3
+    const A=csvFilas(ta), al=A.find(r=>(r[1]||'').trim()==='Lote'), av=A.find(r=>esVideo(r[1])), nom=A[2]||[];
+    if(al&&av) al.forEach((x,j)=>{ const n=nro(x), u=link(av[j]); if(j>1&&n&&u)(out.alq[n]=out.alq[n]||[]).push({n:(nom[j]||'').trim(),u}); });
+    videosPlanilla=out; renderPropiedades();
+  }catch(e){ console.warn('videos',e); }
+}
+function videoPlanilla(p){
+  const m=[...(p.titulo||'').matchAll(/lote\s*(\d+)/gi)].pop(); if(!m) return '';
+  const n=+m[1], ven=videosPlanilla.venta[n]||'', alq=videosPlanilla.alq[n]||[];
+  // si en el lote hay varias casas en alquiler, elijo la que se nombra en el título
+  const casa=(alq.find(c=>c.n&&sinAcentos(p.titulo).indexOf(sinAcentos(c.n))>=0)||alq[0]||{}).u||'';
+  return opDe(p)==='Alquiler' ? (casa||ven) : (ven||casa);
+}
+function videoDe(p){ return p.video||videoPlanilla(p); }
+boot().then(()=>{ chequearMapa(); chequearVersion(); leerVideos(); });
 </script>
 </body>
 </html>
