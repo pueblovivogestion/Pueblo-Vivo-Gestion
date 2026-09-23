@@ -1237,6 +1237,11 @@ function setDolar(v){
   if(n<1){ alert('Poné una cotización válida, mayor a cero.'); renderDolar(); return; }
   db.dolar=n; save(); renderDolar(); renderPropiedades();
 }
+/* Abre WhatsApp con el video de la propiedad listo para mandar; el contacto se elige ahí */
+function mandarVideo(id){
+  const p=db.propiedades.find(x=>x.id===id); if(!p||!p.video) return;
+  window.open('https://wa.me/?text='+encodeURIComponent(p.titulo+'\n'+p.video),'_blank');
+}
 function rowProp(p){
   const contrato=p.contrato||'Sin firmar';
   const ref=p.referente
@@ -1253,9 +1258,11 @@ function rowProp(p){
   const act=protEtapa(p), hechos=protHechos(p), totP=protTotal();
   const prot=`<span class="badge badge-${act?'gray':'green'}" style="cursor:pointer" title="Abrir el protocolo"
       onclick="event.stopPropagation();openProtocolo('${p.id}')">📋 ${act?`${act.n}. ${esc(act.e.corto)}`:'Protocolo completo'} · ${hechos}/${totP}</span>`;
+  const vid=p.video?`<span class="badge badge-green" style="cursor:pointer" title="Mandar el video por WhatsApp"
+      onclick="event.stopPropagation();mandarVideo('${p.id}')">🎬 Mandar video</span>`:'';
   return `<div class="srow" style="cursor:pointer" onclick="openPropiedad('${p.id}')">
       <div class="srow-main"><div class="srow-tit">${esc(p.titulo)}</div><div class="srow-meta">${esc(p.tipo)}${p.zona?' · '+esc(p.zona):''}</div>
-        <div class="tags" style="margin:8px 0 0">${ref}${con}${venc}${prot}</div>
+        <div class="tags" style="margin:8px 0 0">${ref}${con}${venc}${prot}${vid}</div>
         ${p.notas?`<div class="srow-notas">${esc(p.notas)}</div>`:''}</div>
       <div class="srow-right"><span class="srow-precio">${esc(precioTxt(p))}</span>
         ${opDe(p)==='Alquiler'&&p.usdNoche?`<span class="srow-usd">USD ${p.usdNoche}/noche</span>`:''}
@@ -2065,6 +2072,8 @@ function openPropiedad(id){
       <div class="g2"><div class="field"><label>Contrato</label><select id="p-contrato">${opt(CONTRATO,p?(p.contrato||'Sin firmar'):'Sin firmar')}</select></div>
         <div class="field"><label>Vencimiento del contrato</label><input type="month" id="p-venc" value="${p?esc(p.vencimiento||''):''}">
           <div class="hint">Mes y año. Avisamos ${AVISO_VENC} días antes en Inicio y en el calendario.</div></div></div>
+      <div class="field"><label>Video (link de Instagram)</label><input id="p-video" value="${p?esc(p.video||''):''}" placeholder="https://www.instagram.com/reel/…">
+        <div class="hint">Pegá el link del reel. En la tarjeta aparece el botón para mandarlo por WhatsApp.</div></div>
       <div class="field"><label>Notas</label><textarea id="p-notas" style="min-height:130px" placeholder="Lo que quieras anotar de esta propiedad: cómo está, qué pidió el dueño, quién la mostró, qué falta…">${p?esc(p.notas):''}</textarea></div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn success" onclick="savePropiedad('${p?p.id:''}')">Guardar</button></div>
     </div>`;
@@ -2087,7 +2096,7 @@ function previewPesos(){
 function savePropiedad(id){
   const t=$('#p-tit').value.trim(); if(!t){alert('Poné un título');return;}
   const op=$('#p-op').value;
-  const o={titulo:t,operacion:op,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,contrato:$('#p-contrato').value,vencimiento:$('#p-venc').value,notas:$('#p-notas').value.trim()};
+  const o={titulo:t,operacion:op,tipo:$('#p-tipo').value,estado:$('#p-estado').value,zona:$('#p-zona').value.trim(),precio:$('#p-precio').value.trim(),referente:$('#p-ref').value,contrato:$('#p-contrato').value,vencimiento:$('#p-venc').value,notas:$('#p-notas').value.trim(),video:$('#p-video').value.trim()||undefined};
   if(op==='Alquiler'){ const u=Math.round(+$('#p-usd').value)||0; o.usdNoche=u||undefined; o.precio=u?('USD '+u+'/noche'):''; }
   else o.usdNoche=undefined;
   if(id) Object.assign(db.propiedades.find(x=>x.id===id),o); else {o.id=uid();db.propiedades.unshift(o);}
