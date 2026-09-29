@@ -583,7 +583,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-29-1';
+const APP_VER='2026-09-29-2';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -927,6 +927,8 @@ function scrollToCal(){ const el=document.querySelector('.cal'); if(el) el.scrol
 function verReservas(){ go('interesados'); }
 
 /* ============ Resumen ============ */
+let verVencidas=false;
+function toggleVencidas(){ verVencidas=!verVencidas; renderResumen(); }
 function renderResumen(){
   const act=db.interesados.filter(i=>i.estado!=='Cerrado'&&i.estado!=='Perdido');
   const calientes=act.filter(i=>i.prioridad==='Alta').length;
@@ -952,8 +954,16 @@ function renderResumen(){
     const txt=v.dias<0?'venció el contrato':'vence el contrato';
     items.push({f:v.fecha,d:v.dias,html:`<b>${esc(v.prop.titulo)}</b> — ${txt} (${esc(vencTxt(v.prop.vencimiento))})`,click:`openPropiedad('${v.prop.id}')`,qa:''}); });
   items.sort((a,b)=>a.f.localeCompare(b.f));
+  /* Lo vencido se guarda detrás de un botón. Son cosas que casi siempre ya se
+     hicieron y nadie tildó, y tapaban lo que de verdad viene ahora. */
+  const linea=x=>`<div class="accion-item" onclick="${x.click}">${cuando(x.d)}<span class="atxt">${x.html}</span>${x.qa}</div>`;
+  const vencidas=items.filter(x=>x.d<0), proximas=items.filter(x=>x.d>=0);
   const vacio=`<div class="accion-empty">Nada pendiente ✓</div>`;
-  $('#alertas').innerHTML=items.length?items.map(x=>`<div class="accion-item" onclick="${x.click}">${cuando(x.d)}<span class="atxt">${x.html}</span>${x.qa}</div>`).join(''):vacio;
+  $('#alertas').innerHTML=(proximas.length?proximas.map(linea).join(''):vacio)
+    + (vencidas.length
+        ? `<button class="notas-toggle" onclick="toggleVencidas()">${verVencidas?'▾':'▸'} Vencidas (${vencidas.length})</button>`
+          + (verVencidas?vencidas.map(linea).join(''):'')
+        : '');
 
   // Próximos pasos: próximas acciones de activos por prioridad
   const seguir=act.filter(i=>i.proxima&&i.proxima.txt).sort((a,b)=>PRIO_ORDEN[a.prioridad]-PRIO_ORDEN[b.prioridad]).slice(0,8);
