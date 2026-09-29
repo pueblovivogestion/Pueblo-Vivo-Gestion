@@ -361,6 +361,10 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 .tarea.hecha .tarea-txt{text-decoration:line-through;color:var(--ink3)}
 .tarea-edit{border:1px solid var(--green);border-radius:6px;padding:6px 9px;background:var(--bg);color:var(--ink);outline:none}
 .tarea .iconbtn{flex:0 0 auto}
+.notas-toggle{display:block;width:100%;text-align:left;margin:16px 0 9px;padding:10px 13px;
+  border:1px dashed var(--border2);border-radius:9px;background:none;color:var(--ink3);
+  font-family:inherit;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
+.notas-toggle:hover{border-color:var(--green);color:var(--green)}
 .notas-sub{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin:16px 0 9px}
 @media(max-width:640px){
   .g2,.g3{grid-template-columns:1fr}
@@ -579,7 +583,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-23-1';
+const APP_VER='2026-09-29-1';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -1785,7 +1789,8 @@ function delMov(id){ if(!confirm('¿Eliminar este movimiento?'))return; db.movim
 let editTareaId=null;
 /* Las opciones del filtro se guardan acá y los botones mandan la posición, no
    el texto: así un nombre de categoría con comillas no rompe el onclick. */
-let opsNota=[];
+let opsNota=[], verRealizadas=false;
+function toggleRealizadas(){ verRealizadas=!verRealizadas; renderNotas(); }
 const QUIEN_NOTA=['Sin asignar','Fran','Cande','Ambas'];
 const OPS_QUIEN=['Todas','Fran','Cande','Ambas','Sin asignar'];
 function catsNotasLista(){ return db.catsNotas.map(c=>c.nombre); }
@@ -1835,7 +1840,8 @@ function renderNotas(){
   const cats=catsNotasLista();
   const haySin=db.tareas.some(t=>!t.cat);
   opsNota=['Todas',...cats,...(haySin?['Sin categoría']:[])];
-  const baseCat=notasFiltradas('cat'), baseQuien=notasFiltradas('quien');
+  // los contadores cuentan lo que falta hacer; lo realizado ya no molesta acá
+  const baseCat=notasFiltradas('cat').filter(t=>!t.hecho), baseQuien=notasFiltradas('quien').filter(t=>!t.hecho);
   const esPropia=cats.indexOf(filtroNota)>=0;
   $('#fil-nota').innerHTML=`<span class="subnav-lbl">Categoría</span>`
     + opsNota.map((v,i)=>`<button class="subnav-btn ${filtroNota===v?'active':''}" onclick="setFilNotaIdx(${i})">${esc(v)}<span class="c">${baseCat.filter(t=>coincideCat(t,v)).length}</span></button>`).join('')
@@ -1873,8 +1879,11 @@ function renderNotas(){
   const pend=lista.filter(t=>!t.hecho), done=lista.filter(t=>t.hecho);
   let html='';
   html += pend.length ? pend.map(row).join('')
-    : (done.length?'':`<div class="empty">${sinFiltros?'No hay tareas. Escribí una arriba 👆':'No hay tareas con estos filtros.'}</div>`);
-  if(done.length) html += `<div class="notas-sub">✓ Realizadas (${done.length})</div>`+done.map(row).join('');
+    : `<div class="empty">${done.length?'Todo al día ✓':(sinFiltros?'No hay tareas. Escribí una arriba 👆':'No hay tareas con estos filtros.')}</div>`;
+  /* Las realizadas siguen guardadas pero fuera del camino: la lista muestra
+     sólo lo que falta, y se abren cuando se las quiere ver. */
+  if(done.length) html += `<button class="notas-toggle" onclick="toggleRealizadas()">${verRealizadas?'▾':'▸'} ✓ Realizadas (${done.length})</button>`
+    + (verRealizadas?done.map(row).join(''):'');
   $('#notas-lista').innerHTML=html;
   if(editTareaId){ const el=document.getElementById('ed-'+editTareaId); if(el){ el.focus(); el.select(); } }
 }
