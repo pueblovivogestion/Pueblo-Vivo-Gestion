@@ -532,6 +532,18 @@ input,select,textarea{font-size:15.5px}
     <div id="notas-lista"></div>
   </div>
 
+  <!-- ALAMA · nuestro desarrollo -->
+  <div class="page" id="page-alama">
+    <div class="page-hdr"><div><h2>Alama</h2><div class="sub">Nuestro desarrollo — tareas</div></div></div>
+    <div class="sec" style="padding:14px 16px">
+      <div style="display:flex;gap:8px">
+        <input id="alama-input" placeholder="Escribí una tarea y Enter…" onkeydown="if(event.key==='Enter')addAlama()" style="flex:1;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--ink);font-size:14px">
+        <button class="btn success" onclick="addAlama()">Agregar</button>
+      </div>
+    </div>
+    <div id="alama-lista"></div>
+  </div>
+
   <!-- CONTACTOS -->
   <div class="page" id="page-contactos">
     <div class="page-hdr">
@@ -583,7 +595,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-09-29-2';
+const APP_VER='2026-10-12-1';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -664,7 +676,7 @@ const CAJA_CAT=['Comisión','Seña','Publicidad','Oficina','Movilidad','Sueldos'
 let db={interesados:[],propiedades:[],eventos:[],cierres:[],contactos:[],movimientos:[],tareas:[]};
 
 function load(){ try{const d=JSON.parse(localStorage.getItem(LS_KEY)); if(d&&d.interesados)return d;}catch(e){} return seed(); }
-function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales','catsPersonales','catsNotas'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
+function normalizar(){ ['interesados','propiedades','eventos','cierres','contactos','movimientos','tareas','personales','catsPersonales','catsNotas','alama'].forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; }); }
 function applyMigrations(){
   const M={'Caliente':'Alta','Tibio':'Media','Frío':'Baja'};
   db.interesados.forEach(i=>{ if(M[i.prioridad]) i.prioridad=M[i.prioridad]; });
@@ -902,7 +914,7 @@ function cuando(d){
   return `<span class="accion-cuando">en ${d} d</span>`;
 }
 
-const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['contactos','Contactos'],['cierres','Cierres']];
+const TABS=[['resumen','Inicio'],['interesados','Interesados'],['propiedades','Propiedades'],['caja','Caja'],['notas','Notas'],['alama','Alama'],['contactos','Contactos'],['cierres','Cierres']];
 let currentTab='resumen', filtroEstado='Todos', filtroProp='Todos', filtroRef='Todos', filtroCon='Todos', opProp='Venta', tabCaja='pv', filtroNota='Todas', filtroQuien='Todas';
 let filtroRefInt='Todos', filtroBusca='Todos';
 
@@ -911,6 +923,7 @@ function renderNav(){
     let c='';
     if(k==='interesados') c=db.interesados.filter(i=>i.estado!=='Cerrado'&&i.estado!=='Perdido').length;
     if(k==='propiedades') c=db.propiedades.filter(p=>p.estado==='Disponible').length;
+    if(k==='alama') c=db.alama.filter(t=>!t.hecho).length;
     return `<button class="nav-btn ${k===currentTab?'active':''}" onclick="go('${k}')">${n}${c?`<span class="n">${c}</span>`:''}</button>`;
   }).join('');
 }
@@ -919,7 +932,7 @@ function go(k){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   $('#page-'+k).classList.add('active');
   renderNav();
-  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,caja:openMov,notas:()=>document.getElementById('tarea-input')?.focus(),contactos:openContacto};
+  const map={resumen:openEvento,interesados:openInteresado,propiedades:openPropiedad,cierres:openCierre,caja:openMov,notas:()=>document.getElementById('tarea-input')?.focus(),alama:()=>document.getElementById('alama-input')?.focus(),contactos:openContacto};
   $('#fab').onclick=map[k]||openInteresado;
   window.scrollTo(0,0);
 }
@@ -1911,6 +1924,52 @@ function addTarea(){
 function toggleTarea(id){ const t=db.tareas.find(x=>x.id===id); if(!t)return; t.hecho=!t.hecho; save(); renderNotas(); }
 function delTarea(id){ db.tareas=db.tareas.filter(t=>t.id!==id); save(); renderNotas(); }
 
+/* ============ Alama · nuestro desarrollo ============
+   Lista propia, separada de Notas. Por ahora sólo tareas: quién se encarga y
+   si está realizada. Sin categorías ni filtros hasta que haga falta. */
+let editAlamaId=null, verAlamaHechas=false;
+function toggleAlamaHechas(){ verAlamaHechas=!verAlamaHechas; renderAlama(); }
+function renderAlama(){
+  const row=t=>{
+    const cuerpo=(editAlamaId===t.id)
+      ? `<input class="tarea-txt tarea-edit" id="eda-${t.id}" value="${esc(t.txt)}" onkeydown="if(event.key==='Enter')guardarAlama('${t.id}');if(event.key==='Escape'){editAlamaId=null;renderAlama();}" onblur="guardarAlama('${t.id}')">`
+      : `<span class="tarea-txt" onclick="editarAlama('${t.id}')" title="Tocá para editar">${esc(t.txt)}</span>`;
+    return `<div class="tarea ${t.hecho?'hecha':''}">
+      <div class="tarea-top">${cuerpo}
+        <div class="acts">
+          <button class="iconbtn" onclick="editarAlama('${t.id}')" title="Editar">${ICO_LAPIZ}</button>
+          <button class="iconbtn del" onclick="delAlama('${t.id}')" title="Eliminar">${ICO_TACHO}</button>
+        </div>
+      </div>
+      <div class="tarea-meta">
+        <select title="Quién se encarga" onchange="setAlamaQuien('${t.id}',this.value)">${optEsc(QUIEN_NOTA,t.quien||'Sin asignar')}</select>
+        <button class="btn sm ${t.hecho?'':'success'}" onclick="toggleAlama('${t.id}')">${t.hecho?'✓ Realizado':'Marcar realizado'}</button>
+      </div>
+    </div>`;
+  };
+  const pend=db.alama.filter(t=>!t.hecho), done=db.alama.filter(t=>t.hecho);
+  let html = pend.length ? pend.map(row).join('')
+    : `<div class="empty">${done.length?'Todo al día ✓':'No hay tareas todavía. Escribí una arriba 👆'}</div>`;
+  if(done.length) html += `<button class="notas-toggle" onclick="toggleAlamaHechas()">${verAlamaHechas?'▾':'▸'} ✓ Realizadas (${done.length})</button>`
+    + (verAlamaHechas?done.map(row).join(''):'');
+  $('#alama-lista').innerHTML=html;
+  if(editAlamaId){ const el=document.getElementById('eda-'+editAlamaId); if(el){ el.focus(); el.select(); } }
+}
+function addAlama(){
+  const el=$('#alama-input'); const t=el.value.trim(); if(!t)return;
+  db.alama.unshift({id:uid(),txt:t,hecho:false,quien:''});
+  el.value=''; el.focus(); save(); renderAlama(); renderNav();
+}
+function editarAlama(id){ editAlamaId=id; renderAlama(); }
+function guardarAlama(id){
+  const el=document.getElementById('eda-'+id), t=db.alama.find(x=>x.id===id);
+  if(el&&t){ const v=el.value.trim(); if(v)t.txt=v; }
+  editAlamaId=null; save(); renderAlama();
+}
+function toggleAlama(id){ const t=db.alama.find(x=>x.id===id); if(!t)return; t.hecho=!t.hecho; save(); renderAlama(); renderNav(); }
+function setAlamaQuien(id,v){ const t=db.alama.find(x=>x.id===id); if(!t)return; t.quien=(v==='Sin asignar')?'':v; save(); renderAlama(); }
+function delAlama(id){ db.alama=db.alama.filter(t=>t.id!==id); save(); renderAlama(); renderNav(); }
+
 /* ============ Contactos ============ */
 let contactoQuery='';
 function setContactoQuery(v){ contactoQuery=v; renderContactos(); }
@@ -2307,7 +2366,7 @@ function renderAll(){
   renderFilEstado(); renderInteresados();
   renderAgenda();
   renderFilProp(); renderPropiedades();
-  renderCierres(); renderCaja(); renderNotas(); renderContactos();
+  renderCierres(); renderCaja(); renderNotas(); renderAlama(); renderContactos();
 }
 /* Sólo para que Android ofrezca instalarla. El sw.js no cachea nada. */
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
