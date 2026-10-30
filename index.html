@@ -122,9 +122,12 @@ input,select,textarea{font-family:inherit;font-size:13.5px}
 #update-bar span{flex:1}
 .upd-x{border:0;background:none;color:rgba(255,255,255,.6);font-size:15px;cursor:pointer;padding:0 2px}
 .upd-x:hover{color:#fff}
-.cat-total{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;margin:-4px 0 10px;
-  border-radius:8px;background:var(--green3);font-size:12.5px;color:var(--ink2)}
-.cat-total b{font-family:var(--serif);font-size:16px;font-weight:500;white-space:nowrap}
+.cat-total{padding:11px 14px;margin:-4px 0 10px;border-radius:8px;background:var(--green3)}
+.ct-n{font-size:12px;color:var(--ink2);margin-bottom:8px}
+.ct-v{display:flex;flex-wrap:wrap;gap:6px 20px}
+.ct-v span{display:flex;flex-direction:column;gap:1px;font-size:10.5px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink3)}
+.ct-v b{font-family:var(--serif);font-size:15px;font-weight:500;white-space:nowrap;color:var(--ink)}
 .mover{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .catnew{display:flex;gap:6px;margin-top:7px}
 .catnew[hidden]{display:none}
@@ -507,6 +510,7 @@ input,select,textarea{font-size:15.5px}
     </div>
     <div class="optabs" id="op-caja"></div>
     <div id="caja-resumen"></div>
+    <div class="subnav" id="fil-caja-mes"></div>
     <div class="subnav" id="fil-caja"></div>
     <div class="subnav" id="fil-caja-cat"></div>
     <div id="caja-subtotal"></div>
@@ -595,7 +599,7 @@ const CATS_NOTAS_INI=['Alquileres','Ventas','Comunicación','Administrativo','Pr
 /* IMPORTANTE al publicar: subir este número en cada cambio. La app compara el
    suyo con el del archivo publicado y avisa cuando el teléfono quedó viejo,
    que es lo que hacía que no se vieran las novedades. */
-const APP_VER='2026-10-30-1';
+const APP_VER='2026-10-30-2';
 const EV_TIPOS=['Reunión','Visita','Llamado','Nota','Otro'];
 const CIERRE_TIPOS=['Venta','Alquiler','Otro'];
 const COBRA=['Fran','Cande','Mitad'];
@@ -1524,20 +1528,34 @@ function cajaTotales(items){
   return t;
 }
 function setFilCaja(k){ filtroCaja=k; renderCaja(); }
-/* ---- Filtros de la caja: tipo y categoría ----
-   Sirve igual para la solapa de Pueblo Vivo y para «Mi caja». Las categorías
-   se arman con las que realmente aparecen en la lista de esa solapa. Las
-   opciones se pasan por posición para que un nombre con comillas no rompa. */
-let filtroCatCaja='Todas', opsCatCaja=[];
+/* ---- Filtros de la caja: mes, tipo y categoría ----
+   Sirve igual para la solapa de Pueblo Vivo y para «Mi caja». Los meses y las
+   categorías se arman con los que realmente aparecen en la lista de esa
+   solapa. Las opciones se pasan por posición para que un nombre con comillas
+   no rompa el onclick. */
+let filtroCatCaja='Todas', opsCatCaja=[], filtroMesCaja='Todos', opsMesCaja=[];
 const catDeMov=x=>x.cat||'Sin categoría';
+const mesDeMov=x=>(x.fecha||'').slice(0,7);
+const mesTxt=m=>{ const [y,mm]=m.split('-'); return `${MESC[+mm-1]} ${y}`; };
 function setFilCatCajaIdx(i){ filtroCatCaja=opsCatCaja[i]||'Todas'; renderCaja(); }
+function setFilMesCajaIdx(i){ filtroMesCaja=opsMesCaja[i]||'Todos'; renderCaja(); }
 function filtrosCaja(items){
   const cats=[...new Set(items.map(catDeMov))].sort((a,b)=>a.localeCompare(b,'es'));
   if(filtroCatCaja!=='Todas' && cats.indexOf(filtroCatCaja)<0) filtroCatCaja='Todas';
+  const meses=[...new Set(items.map(mesDeMov).filter(Boolean))].sort().reverse();
+  if(filtroMesCaja!=='Todos' && meses.indexOf(filtroMesCaja)<0) filtroMesCaja='Todos';
   const porTipo=x=>filtroCaja==='Todos'||x.tipo===filtroCaja;
   const porCat=x=>filtroCatCaja==='Todas'||catDeMov(x)===filtroCatCaja;
-  // cada fila cuenta sobre lo ya filtrado por la otra
-  const baseTipo=items.filter(porCat), baseCat=items.filter(porTipo);
+  const porMes=x=>filtroMesCaja==='Todos'||mesDeMov(x)===filtroMesCaja;
+  // cada fila cuenta sobre lo ya filtrado por las otras dos
+  const baseTipo=items.filter(x=>porCat(x)&&porMes(x));
+  const baseCat=items.filter(x=>porTipo(x)&&porMes(x));
+  const baseMes=items.filter(x=>porTipo(x)&&porCat(x));
+  opsMesCaja=['Todos',...meses];
+  $('#fil-caja-mes').innerHTML = meses.length<2 ? '' : `<span class="subnav-lbl">Mes</span>`+opsMesCaja.map((m,i)=>{
+    const n=m==='Todos'?baseMes.length:baseMes.filter(x=>mesDeMov(x)===m).length;
+    return `<button class="subnav-btn ${filtroMesCaja===m?'active':''}" onclick="setFilMesCajaIdx(${i})">${m==='Todos'?'Todos':esc(mesTxt(m))}<span class="c">${n}</span></button>`;
+  }).join('');
   $('#fil-caja').innerHTML=`<span class="subnav-lbl">Tipo</span>`+['Todos','Ingreso','Gasto'].map(f=>{
     const n=f==='Todos'?baseTipo.length:baseTipo.filter(x=>x.tipo===f).length;
     return `<button class="subnav-btn ${filtroCaja===f?'active':''}" onclick="setFilCaja('${f}')">${f==='Todos'?'Todos':f+'s'}<span class="c">${n}</span></button>`;
@@ -1547,14 +1565,24 @@ function filtrosCaja(items){
     const n=c==='Todas'?baseCat.length:baseCat.filter(x=>catDeMov(x)===c).length;
     return `<button class="subnav-btn ${filtroCatCaja===c?'active':''}" onclick="setFilCatCajaIdx(${i})">${esc(c)}<span class="c">${n}</span></button>`;
   }).join('');
-  const list=items.filter(x=>porTipo(x)&&porCat(x));
-  // con algún filtro puesto, mostramos cuánto suma lo que quedó a la vista
-  if(filtroCaja==='Todos' && filtroCatCaja==='Todas'){ $('#caja-subtotal').innerHTML=''; }
+  const list=items.filter(x=>porTipo(x)&&porCat(x)&&porMes(x));
+  // con algún filtro puesto, mostramos qué entró, qué salió y cuánto quedó
+  if(filtroCaja==='Todos' && filtroCatCaja==='Todas' && filtroMesCaja==='Todos'){ $('#caja-subtotal').innerHTML=''; }
   else {
-    const t={usd:0,ars:0};
-    list.forEach(x=>{ t[x.moneda==='USD'?'usd':'ars']+=(x.tipo==='Gasto'?-1:1)*(+x.monto||0); });
-    const nombre=[filtroCatCaja!=='Todas'?filtroCatCaja:'', filtroCaja!=='Todos'?filtroCaja+'s':''].filter(Boolean).join(' · ');
-    $('#caja-subtotal').innerHTML=`<div class="cat-total"><span>${esc(nombre)} · ${list.length} movimiento${list.length===1?'':'s'}</span><b style="color:${(t.usd<0||t.ars<0)?'var(--red)':'var(--green)'}">${dual(t)}</b></div>`;
+    const ing={usd:0,ars:0}, eg={usd:0,ars:0};
+    list.forEach(x=>{ const c=x.moneda==='USD'?'usd':'ars', v=+x.monto||0;
+      if(x.tipo==='Gasto') eg[c]+=v; else ing[c]+=v; });
+    const neto={usd:ing.usd-eg.usd, ars:ing.ars-eg.ars};
+    const nombre=[filtroMesCaja!=='Todos'?mesTxt(filtroMesCaja):'',
+                  filtroCatCaja!=='Todas'?filtroCatCaja:'',
+                  filtroCaja!=='Todos'?filtroCaja+'s':''].filter(Boolean).join(' · ');
+    $('#caja-subtotal').innerHTML=`<div class="cat-total">
+      <div class="ct-n">${esc(nombre)} · ${list.length} movimiento${list.length===1?'':'s'}</div>
+      <div class="ct-v">
+        <span>Ingresos<b style="color:var(--green)">${dual(ing)}</b></span>
+        <span>Egresos<b style="color:var(--red)">${dual(eg)}</b></span>
+        <span>Neto<b style="color:${(neto.usd<0||neto.ars<0)?'var(--red)':'var(--ink)'}">${dual(neto)}</b></span>
+      </div></div>`;
   }
   return list;
 }
@@ -1616,7 +1644,7 @@ function moverA(id,destino){
   else db.personales.unshift({...base, de:destino});
   save(); closeModal(); renderCaja();
 }
-function setTabCaja(k){ tabCaja=k; filtroCaja='Todos'; filtroCatCaja='Todas'; renderCaja(); }
+function setTabCaja(k){ tabCaja=k; filtroCaja='Todos'; filtroCatCaja='Todas'; filtroMesCaja='Todos'; renderCaja(); }
 function nuevoEnCaja(){ if(tabCaja==='mia'){ if(!soyQuien()){ alert('Primero decinos quién sos en esta pantalla.'); return; } openPersonal(); } else openMov(); }
 
 function renderCaja(){
@@ -1664,7 +1692,7 @@ function renderCajaMia(t){
           <button class="btn success" style="flex:1" onclick="setSoy('Cande')">Soy Cande</button>
         </div>
       </div>`;
-    $('#fil-caja').innerHTML=''; $('#fil-caja-cat').innerHTML=''; $('#caja-subtotal').innerHTML=''; $('#caja-lista').innerHTML='';
+    $('#fil-caja').innerHTML=''; $('#fil-caja-cat').innerHTML=''; $('#fil-caja-mes').innerHTML=''; $('#caja-subtotal').innerHTML=''; $('#caja-lista').innerHTML='';
     return;
   }
   $('#caja-sub').textContent='Tu parte de Pueblo Vivo más lo tuyo personal';
